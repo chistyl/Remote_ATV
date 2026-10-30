@@ -217,27 +217,20 @@ class _RemoteHomeState extends State<RemoteHome> {
   }
 
   Future<void> _beginPairing(TvDevice d) async {
-    setState(() => deviceName = '正在檢查：${d.name}');
+    if (!mounted) return;
+    setState(() => deviceName = '正在連接電視：${d.name}');
+    _addDiagnostic('使用者選擇電視：${d.name}；位址=${d.host}；服務=${d.serviceType}；連接埠=${d.port}');
+    _notice('正在連接「${d.name}」，請稍候；電視應顯示配對碼。');
     try {
-      final probe = await _methods.invokeMethod<dynamic>('probeDevice', {'host': d.host, 'port': d.port});
-      if (probe is Map && probe['reachable'] == true) {
-        _addDiagnostic('配對前 TCP 探測成功：${d.host}:${d.port}，耗時 ${probe['elapsedMs'] ?? '?'} ms');
-      } else if (probe is Map) {
-        _addDiagnostic('配對前 TCP 探測失敗：${probe['message'] ?? '未知錯誤'}；${d.host}:${d.port}');
-      }
-      if (probe is Map && probe['reachable'] != true) {
-        if (mounted) {
-          setState(() => deviceName = '尚未連線');
-          _notice('${probe['message'] ?? '電視配對服務無法連線'}（${d.host}:${d.port}）');
-        }
-        return;
-      }
-      if (!mounted) return;
-      setState(() => deviceName = '正在配對：${d.name}');
+      // Do not gate pairing on a separate TCP probe. Some Android TV builds
+      // accept the TLS pairing socket while a preliminary plain TCP probe is
+      // rejected or races with the TV service startup.
+      setState(() => deviceName = '正在建立安全配對：${d.name}');
       await _methods.invokeMethod('beginPairing', {
         'host': d.host, 'port': d.port, 'name': d.name, 'serviceType': d.serviceType,
-      });
+      }).timeout(const Duration(seconds: 45));
       if (!mounted) return;
+      _addDiagnostic('電視已完成配對初始化，等待輸入 PIN');
       final controller = TextEditingController();
       final pin = await showDialog<String>(
         context: context,
@@ -274,7 +267,8 @@ class _RemoteHomeState extends State<RemoteHome> {
         if (mounted) { setState(() => deviceName = '尚未連線'); _notice('配對碼格式錯誤，請輸入電視顯示的 6 位數十六進位代碼（0–9、A–F）。'); }
         return;
       }
-      await _methods.invokeMethod('finishPairing', {'pin': pin.toUpperCase()});
+      setState(() => deviceName = '正在確認配對碼：${d.name}');
+      await _methods.invokeMethod('finishPairing', {'pin': pin.toUpperCase()}).timeout(const Duration(seconds: 30));
       if (mounted) {
         setState(() { deviceName = '${d.name}（已配對，正在連線）'; selectedHost = d.host; });
         _pairedServiceName = d.name;
@@ -285,12 +279,20 @@ class _RemoteHomeState extends State<RemoteHome> {
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() => deviceName = '尚未連線');
+        _addDiagnostic('配對平台錯誤：${e.code}；${e.message ?? ''}');
         _notice(e.message ?? '配對失敗，請重新搜尋電視');
       }
+    } on TimeoutException catch (e) {
+      if (mounted) {
+        setState(() => deviceName = '配對逾時，請重新搜尋');
+        _addDiagnostic('配對流程逾時：$e');
+        _notice('電視在期限內沒有完成配對回應。請確認電視仍停留在配對畫面，再重新選擇電視。');
+      }
     } catch (e) {
-      if (mounted) { setState(() => deviceName = '尚未連線'); _notice('配對失敗：$e'); }
+      if (mounted) { setState(() => deviceName = '尚未連線'); _addDiagnostic('配對例外：$e'); _notice('配對失敗：$e'); }
     }
   }
+
   Future<void> _loadUiSettings() async {
     try {
       final value = await _methods.invokeMethod<dynamic>('getUiSettings');
