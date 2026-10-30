@@ -1045,18 +1045,29 @@ class MainActivity : FlutterActivity() {
     }
     private fun hexToBytes(hex: String): ByteArray = ByteArray(hex.length / 2) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
     private fun friendlyError(e: Exception, stage: String): String {
+        // Keep the complete TLS cause chain: Android providers often put the
+        // actionable alert (protocol mismatch, rejected client certificate,
+        // no shared cipher, or remote alert) one or two levels below the
+        // SSLHandshakeException.
+        val causes = generateSequence<Throwable>(e) { current ->
+            current.cause?.takeIf { it !== current }
+        }.take(5).map { cause ->
+            "${cause.javaClass.simpleName}: ${cause.message ?: "無詳細訊息"}"
+        }.toList()
+        val causeDetail = causes.joinToString(" → ")
         val detail = when (e) {
             is java.net.SocketTimeoutException -> "等待電視回應逾時；請確認電視仍開機、手機與電視位於同一個 Wi-Fi，並檢查路由器是否啟用用戶端隔離。"
-            is java.net.ConnectException -> "TCP 連線遭拒絕；服務可能已停止、mDNS 資訊已過期，或電視未開放此連接埠。"
-            is javax.net.ssl.SSLPeerUnverifiedException -> "電視身分驗證失敗：${e.message ?: "對端憑證未通過驗證"}"
-            is javax.net.ssl.SSLHandshakeException -> "TLS 握手失敗：${e.cause?.message ?: e.message ?: "雙方安全協定或憑證不相容"}"
-            is java.security.cert.CertificateException -> "憑證驗證失敗：${e.message ?: "電視憑證不符合配對紀錄"}"
-            is SecurityException -> e.message ?: "安全驗證失敗"
-            is IllegalArgumentException -> e.message ?: "輸入資料不正確"
-            else -> e.message ?: e.javaClass.simpleName
+            is java.net.ConnectException -> "TCP 連線遭拒絕：$causeDetail"
+            is javax.net.ssl.SSLPeerUnverifiedException -> "電視身分驗證失敗：$causeDetail"
+            is javax.net.ssl.SSLHandshakeException -> "TLS 握手失敗：$causeDetail"
+            is java.security.cert.CertificateException -> "憑證驗證失敗：$causeDetail"
+            is SecurityException -> e.message ?: "安全驗證失敗：$causeDetail"
+            is IllegalArgumentException -> e.message ?: "輸入資料不正確：$causeDetail"
+            else -> causeDetail
         }
         return "失敗階段：$stage。$detail"
     }
+
     private fun cancelPairing() {
         synchronized(pairingLock) { try { pairingSocket?.close() } catch (_: Exception) { }; pairingSocket = null }
     }
