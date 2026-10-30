@@ -1,0 +1,163 @@
+name: Android APK Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Prepare, analyze and build Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter 3.27.4 (pinned)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          channel: stable
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Show toolchain versions
+        run: |
+          mkdir -p ci-reports
+          {
+            flutter --version
+            dart --version
+            java -version
+            python --version
+          } 2>&1 | tee ci-reports/toolchain.txt
+
+      - name: Verify app version consistency
+        run: python tools/version_consistency.py
+
+      - name: Prepare and verify real Gradle Wrapper
+        id: wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/test_prepare_android.py 2>&1 | tee ci-reports/wrapper-test.log
+          python tools/prepare_android.py 2>&1 | tee ci-reports/wrapper-prepare.log
+          python tools/gradle_compatibility.py 2>&1 | tee ci-reports/gradle-compatibility.log
+          test -x android/gradlew
+          test -f android/gradlew.bat
+          test -f android/gradle/wrapper/gradle-wrapper.jar
+          grep -q 'gradle-8.7-all.zip' android/gradle/wrapper/gradle-wrapper.properties
+          cp android/gradle/wrapper/gradle-wrapper.properties ci-reports/gradle-wrapper.properties
+
+      - name: Resolve Flutter dependencies
+        id: dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get 2>&1 | tee ci-reports/pub-get.log
+          test -s pubspec.lock
+          cp pubspec.lock ci-reports/pubspec.lock
+          sha256sum pubspec.lock | tee ci-reports/pubspec-lock.sha256
+
+      - name: Build and verify Debug APK
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/build_debug.sh 2>&1 | tee ci-reports/build.log
+
+      - name: Collect APK inspection metadata
+        if: success() && steps.build.outcome == 'success'
+        shell: bash
+        run: |
+          mkdir -p ci-reports
+          python tools/verify_apk.py build/app/outputs/flutter-apk/app-debug.apk --report ci-reports/apk-inspection.json
+
+      - name: Collect build report
+        if: always()
+        shell: bash
+        env:
+          WRAPPER_OUTCOME: ${{ steps.wrapper.outcome }}
+          DEPENDENCY_OUTCOME: ${{ steps.dependencies.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          COMMIT_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          mkdir -p ci-reports
+          {
+            APP_VERSION="$(sed -n 's/^version: \\([^+]*\\)+.*/\\1/p' pubspec.yaml)"
+            APP_BUILD="$(sed -n 's/^version: [^+]*+\\([0-9]*\\)$/\\1/p' pubspec.yaml)"
+            echo "Remote ATV ${APP_VERSION} CI Build Report (Build ${APP_BUILD})"
+            echo "Wrapper preparation outcome: ${WRAPPER_OUTCOME:-not_started}"
+            echo "Dependency resolution outcome: ${DEPENDENCY_OUTCOME:-not_started}"
+            echo "Build outcome: ${BUILD_OUTCOME:-not_started}"
+            echo "Commit: ${COMMIT_SHA}"
+            echo "Ref: ${REF_NAME}"
+            echo "Timestamp (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "--- Toolchain ---"
+            flutter --version 2>&1 || true
+            dart --version 2>&1 || true
+            java -version 2>&1 || true
+            python --version 2>&1 || true
+            echo
+            echo "--- Gradle Wrapper ---"
+            if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then cat android/gradle/wrapper/gradle-wrapper.properties; else echo "Gradle Wrapper was not prepared."; fi
+            echo
+            echo "--- Dependency resolution ---"
+            if [ -f pubspec.lock ]; then
+              cp pubspec.lock ci-reports/pubspec.lock
+              sha256sum pubspec.lock
+            else
+              echo "pubspec.lock was not generated."
+            fi
+            echo
+            echo "--- APK ---"
+            APK="build/app/outputs/flutter-apk/app-debug.apk"
+            if [ -f "$APK" ]; then
+              ls -lh "$APK"
+              sha256sum "$APK"
+            else
+              echo "APK was not produced."
+            fi
+          } > ci-reports/build-report.txt
+
+      - name: Upload Debug APK
+        if: success() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-atv-debug-apk
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            ci-reports/apk-inspection.json
+            ci-reports/pubspec.lock
+            ci-reports/pubspec-lock.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-atv-build-diagnostics
+          path: ci-reports/
+          if-no-files-found: warn
+          retention-days: 14
