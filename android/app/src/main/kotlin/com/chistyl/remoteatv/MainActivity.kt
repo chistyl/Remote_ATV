@@ -29,9 +29,11 @@ import java.util.Date
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import java.security.KeyStore
 import java.security.SecureRandom
+import java.security.Security
 import java.security.PrivateKey
 import android.security.keystore.KeyInfo
 import java.security.cert.X509Certificate
@@ -46,8 +48,8 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 private const val KEYCODE_MAX = 1000
-private const val CLIENT_IDENTITY_ALIAS = "remote_atv_client_identity"
-private val CLIENT_IDENTITY_PASSWORD = "RemoteATV-client-keystore".toCharArray()
+private const val CLIENT_IDENTITY_ALIAS = "chi-tv-remote"
+private val CLIENT_IDENTITY_PASSWORD = "chi-tv-remote-local".toCharArray()
 
 class MainActivity : FlutterActivity() {
     private val methodChannelName = "remote_atv/discovery"
@@ -324,14 +326,12 @@ class MainActivity : FlutterActivity() {
                 pairingHost = host
                 setPairingStage("TCP 連線", "正在連接電視配對服務")
                 emitStatus("正在與 $name 建立加密配對連線…")
-                val raw = Socket()
-                raw.connect(InetSocketAddress(host, port), 10000)
-                raw.soTimeout = 12000
                 setPairingStage("TLS 安全握手", "正在建立加密連線")
                 val context = createPairingSslContext()
-                val ssl = context.socketFactory.createSocket(raw, host, port, true) as SSLSocket
+                val ssl = context.socketFactory.createSocket() as SSLSocket
+                ssl.soTimeout = 15000
                 ssl.enabledProtocols = arrayOf("TLSv1.2")
-                ssl.soTimeout = 12000
+                ssl.connect(InetSocketAddress(host, port), 8000)
                 ssl.startHandshake()
                 pairingSocket = ssl
                 setPairingStage("Polo 配對請求", "已建立 TLS，正在送出配對請求")
@@ -386,9 +386,13 @@ class MainActivity : FlutterActivity() {
 
                 setPairingStage("本機 PIN 驗證", "正在驗證配對碼；尚未送出確認資料")
                 val digest = java.security.MessageDigest.getInstance("SHA-256")
+                // Preserve the reference protocol's zero-byte separators between
+                // each RSA modulus and its public exponent.
                 digest.update(bigIntegerBytes(clientRsa.modulus))
+                digest.update(byteArrayOf(0))
                 digest.update(bigIntegerBytes(clientRsa.publicExponent))
                 digest.update(bigIntegerBytes(serverRsa.modulus))
+                digest.update(byteArrayOf(0))
                 digest.update(bigIntegerBytes(serverRsa.publicExponent))
                 digest.update(hexToBytes(pin.substring(2)))
                 val secret = digest.digest()
@@ -441,15 +445,13 @@ class MainActivity : FlutterActivity() {
                 remoteLastDisconnectReason = "連線建立中"
                 remoteStage = "TCP 遙控連線"
                 emitRemoteEvent("connecting", "正在連接 $name…", name)
-                val raw = Socket()
-                raw.connect(InetSocketAddress(host, port), 10000)
-                raw.soTimeout = 12000
                 remoteStage = "檢查手機配對憑證與電視指紋"
                 val sslContext = createRemoteSslContext()
                 remoteStage = "TLS 遙控安全握手"
-                val ssl = sslContext.socketFactory.createSocket(raw, host, port, true) as SSLSocket
-                ssl.enabledProtocols = arrayOf("TLSv1.2")
+                val ssl = sslContext.socketFactory.createSocket() as SSLSocket
                 ssl.soTimeout = 12000
+                ssl.enabledProtocols = arrayOf("TLSv1.2")
+                ssl.connect(InetSocketAddress(host, port), 8000)
                 val tlsStartedAt = SystemClock.elapsedRealtime()
                 ssl.startHandshake()
                 remoteTlsHandshakeMs = SystemClock.elapsedRealtime() - tlsStartedAt
@@ -944,7 +946,7 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun clientIdentityFile(): File = File(filesDir, "remote_atv_client_identity.p12")
+    private fun clientIdentityFile(): File = File(filesDir, "atv_remote_client.p12")
 
     private fun loadClientIdentityStore(createIfMissing: Boolean): KeyStore? {
         val file = clientIdentityFile()
@@ -955,22 +957,26 @@ class MainActivity : FlutterActivity() {
         }
         if (!createIfMissing) return null
 
-        // Use a regular software RSA key stored in the app-private directory.
-        // This avoids provider-specific Android Keystore signing failures in Conscrypt.
+        // Match the original GoogleTVRemote reference identity implementation.
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(BouncyCastleProvider())
+        }
         val generator = KeyPairGenerator.getInstance("RSA")
-        generator.initialize(2048, SecureRandom())
+        generator.initialize(2048)
         val pair = generator.generateKeyPair()
         val now = System.currentTimeMillis()
-        val subject = X500Name("CN=Remote ATV Client")
-        val serial = BigInteger(160, SecureRandom()).abs().max(BigInteger.ONE)
+        val subject = X500Name("CN=CHI TV Remote")
         val certBuilder = JcaX509v3CertificateBuilder(
-            subject, serial, Date(now - 60_000L),
-            Date(now + 315_360_000_000L), subject, pair.public
+            subject, BigInteger.valueOf(now), Date(now - 60_000L),
+            Date(now + 10L * 365 * 24 * 60 * 60 * 1000), subject, pair.public
         )
-        val signer = JcaContentSignerBuilder("SHA256withRSA").build(pair.private)
-        val certificate = JcaX509CertificateConverter().getCertificate(certBuilder.build(signer))
+        val signer = JcaContentSignerBuilder("SHA256withRSA")
+            .setProvider(BouncyCastleProvider.PROVIDER_NAME).build(pair.private)
+        val certificate = JcaX509CertificateConverter()
+            .setProvider(BouncyCastleProvider.PROVIDER_NAME).getCertificate(certBuilder.build(signer))
+        certificate.checkValidity()
         certificate.verify(pair.public)
-        store.load(null)
+        store.load(null, CLIENT_IDENTITY_PASSWORD)
         store.setKeyEntry(CLIENT_IDENTITY_ALIAS, pair.private, CLIENT_IDENTITY_PASSWORD, arrayOf(certificate))
         file.outputStream().use { store.store(it, CLIENT_IDENTITY_PASSWORD) }
         return store
