@@ -953,14 +953,13 @@ class MainActivity : FlutterActivity() {
                     ?: throw IllegalStateException("Existing client identity has no private key")
                 val keyInfo = KeyFactory.getInstance(privateKey.algorithm, "AndroidKeyStore")
                     .getKeySpec(privateKey, KeyInfo::class.java)
-                val requiredPurposes = KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY or KeyProperties.PURPOSE_ENCRYPT
+                val requiredPurposes = KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
                 val requiredSignaturePaddings = setOf(
                     KeyProperties.SIGNATURE_PADDING_RSA_PKCS1,
                     KeyProperties.SIGNATURE_PADDING_RSA_PSS
                 )
                 regenerateIdentity =
                     (keyInfo.purposes and requiredPurposes) != requiredPurposes ||
-                    !keyInfo.encryptionPaddings.contains(KeyProperties.ENCRYPTION_PADDING_NONE) ||
                     !requiredSignaturePaddings.all { required -> keyInfo.signaturePaddings.contains(required) }
             } catch (e: Exception) {
                 Log.w("RemoteATV", "Existing client identity is incompatible; regenerating it", e)
@@ -972,7 +971,7 @@ class MainActivity : FlutterActivity() {
             val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
             val spec = KeyGenParameterSpec.Builder(
                 alias,
-                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY or KeyProperties.PURPOSE_ENCRYPT
+                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
             )
                 .setKeySize(2048)
                 .setDigests(KeyProperties.DIGEST_SHA256)
@@ -980,7 +979,6 @@ class MainActivity : FlutterActivity() {
                     KeyProperties.SIGNATURE_PADDING_RSA_PKCS1,
                     KeyProperties.SIGNATURE_PADDING_RSA_PSS
                 )
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .build()
             generator.initialize(spec)
             generator.generateKeyPair()
