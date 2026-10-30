@@ -958,9 +958,10 @@ class MainActivity : FlutterActivity() {
         if (!createIfMissing) return null
 
         // Match the original GoogleTVRemote reference identity implementation.
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-            Security.addProvider(BouncyCastleProvider())
-        }
+        // Android may already register a limited provider named "BC".
+        // Use an explicit BouncyCastle instance so SHA256withRSA is resolved
+        // from the bundled full provider instead of Android's built-in stub.
+        val bcProvider = BouncyCastleProvider()
         val generator = KeyPairGenerator.getInstance("RSA")
         generator.initialize(2048)
         val pair = generator.generateKeyPair()
@@ -971,9 +972,9 @@ class MainActivity : FlutterActivity() {
             Date(now + 10L * 365 * 24 * 60 * 60 * 1000), subject, pair.public
         )
         val signer = JcaContentSignerBuilder("SHA256withRSA")
-            .setProvider(BouncyCastleProvider.PROVIDER_NAME).build(pair.private)
+            .setProvider(bcProvider).build(pair.private)
         val certificate = JcaX509CertificateConverter()
-            .setProvider(BouncyCastleProvider.PROVIDER_NAME).getCertificate(certBuilder.build(signer))
+            .setProvider(bcProvider).getCertificate(certBuilder.build(signer))
         certificate.checkValidity()
         certificate.verify(pair.public)
         store.load(null, CLIENT_IDENTITY_PASSWORD)
