@@ -961,7 +961,7 @@ class MainActivity : FlutterActivity() {
                 regenerateIdentity =
                     (keyInfo.purposes and requiredPurposes) != requiredPurposes ||
                     !keyInfo.encryptionPaddings.contains(KeyProperties.ENCRYPTION_PADDING_NONE) ||
-                    !keyInfo.signaturePaddings.containsAll(requiredSignaturePaddings)
+                    !requiredSignaturePaddings.all { required -> keyInfo.signaturePaddings.contains(required) }
             } catch (e: Exception) {
                 Log.w("RemoteATV", "Existing client identity is incompatible; regenerating it", e)
                 regenerateIdentity = true
