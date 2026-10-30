@@ -20,11 +20,25 @@ echo "取得 Flutter 套件…"
 flutter pub get
 echo "執行 Dart 靜態分析…"
 flutter analyze
-echo "建置 Debug APK…"
-flutter build apk --debug
-APK="$ROOT/build/app/outputs/flutter-apk/app-debug.apk"
-test -f "$APK" || { echo "錯誤：找不到 APK 輸出檔。" >&2; exit 3; }
-python3 tools/verify_apk.py "$APK" --report "$ROOT/build/apk-inspection.json"
-printf '\nAPK 建置完成：%s\n' "$APK"
-printf '檔案大小：%s bytes\n' "$(wc -c < "$APK" | tr -d ' ')"
-if command -v sha256sum >/dev/null 2>&1; then sha256sum "$APK"; fi
+echo "使用 Gradle Wrapper 直接建置 Android Debug APK…"
+(
+  cd "$ROOT/android"
+  ./gradlew --no-daemon :app:assembleDebug
+)
+EXPECTED="$ROOT/build/app/outputs/flutter-apk/app-debug.apk"
+mkdir -p "$(dirname "$EXPECTED")"
+if [ ! -s "$EXPECTED" ]; then
+  echo "Flutter 預設 APK 路徑不存在，搜尋 Gradle 實際輸出…"
+  FOUND="$(find "$ROOT/build" "$ROOT/android/app/build" -type f -name 'app-debug.apk' -size +0c -print -quit 2>/dev/null || true)"
+  if [ -z "$FOUND" ]; then
+    echo "錯誤：Gradle 執行後仍找不到 app-debug.apk。輸出目錄如下："
+    find "$ROOT/build" "$ROOT/android/app/build" -maxdepth 7 -type f \( -name '*.apk' -o -name '*.aab' \) -print 2>/dev/null || true
+    exit 3
+  fi
+  cp "$FOUND" "$EXPECTED"
+  echo "已將 APK 標準化至：$EXPECTED"
+fi
+python3 tools/verify_apk.py "$EXPECTED" --report "$ROOT/build/apk-inspection.json"
+printf '\nAPK 建置完成：%s\n' "$EXPECTED"
+printf '檔案大小：%s bytes\n' "$(wc -c < "$EXPECTED" | tr -d ' ')"
+if command -v sha256sum >/dev/null 2>&1; then sha256sum "$EXPECTED"; fi
