@@ -22,9 +22,12 @@ import java.math.BigInteger
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.SecureRandom
+import java.security.PrivateKey
+import android.security.keystore.KeyInfo
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -937,15 +940,51 @@ class MainActivity : FlutterActivity() {
     private fun createPairingSslContext(): SSLContext {
         val alias = "remote_atv_client_identity"
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        if (!keyStore.containsAlias(alias)) {
+
+        // Conscrypt may select RSA-PSS when the TV requests a client-certificate
+        // signature. Android Keystore keys created without raw RSA (NoPadding)
+        // authorization can fail inside OpenSSL with RSA routines: internal error.
+        // Recreate only legacy/incompatible keys; keep a compatible identity stable
+        // so already-paired TVs are not needlessly unpaired.
+        var regenerateIdentity = !keyStore.containsAlias(alias)
+        if (!regenerateIdentity) {
+            try {
+                val privateKey = keyStore.getKey(alias, null) as? PrivateKey
+                    ?: throw IllegalStateException("Existing client identity has no private key")
+                val keyInfo = KeyFactory.getInstance(privateKey.algorithm, "AndroidKeyStore")
+                    .getKeySpec(privateKey, KeyInfo::class.java)
+                val requiredPurposes = KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY or KeyProperties.PURPOSE_ENCRYPT
+                val requiredSignaturePaddings = setOf(
+                    KeyProperties.SIGNATURE_PADDING_RSA_PKCS1,
+                    KeyProperties.SIGNATURE_PADDING_RSA_PSS
+                )
+                regenerateIdentity =
+                    (keyInfo.purposes and requiredPurposes) != requiredPurposes ||
+                    !keyInfo.encryptionPaddings.contains(KeyProperties.ENCRYPTION_PADDING_NONE) ||
+                    !keyInfo.signaturePaddings.containsAll(requiredSignaturePaddings)
+            } catch (e: Exception) {
+                Log.w("RemoteATV", "Existing client identity is incompatible; regenerating it", e)
+                regenerateIdentity = true
+            }
+        }
+        if (regenerateIdentity) {
+            if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
             val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
-            val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
+            val spec = KeyGenParameterSpec.Builder(
+                alias,
+                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY or KeyProperties.PURPOSE_ENCRYPT
+            )
                 .setKeySize(2048)
                 .setDigests(KeyProperties.DIGEST_SHA256)
-                .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
+                .setSignaturePaddings(
+                    KeyProperties.SIGNATURE_PADDING_RSA_PKCS1,
+                    KeyProperties.SIGNATURE_PADDING_RSA_PSS
+                )
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .build()
             generator.initialize(spec)
             generator.generateKeyPair()
+            keyStore.load(null)
         }
         val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
         kmf.init(keyStore, null)
