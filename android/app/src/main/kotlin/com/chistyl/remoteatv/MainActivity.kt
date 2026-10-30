@@ -490,7 +490,7 @@ class MainActivity : FlutterActivity() {
                 emitRemoteEvent("connected", "$name 已連線，可以開始遙控", name)
                 emitVoiceCapability((negotiatedFeatures and 8) != 0)
                 runOnUiThread { result.success(mapOf("connected" to true, "device" to name)) }
-                remoteReader = Thread { remoteReadLoop(ssl) }.apply { name = "RemoteATV-Reader"; isDaemon = true; start() }
+                remoteReader = Thread { remoteReadLoop(ssl) }.apply { this.name = "RemoteATV-Reader"; isDaemon = true; start() }
             } catch (e: Exception) {
                 Log.e("RemoteATV", "Remote connection failed", e)
                 disconnectRemote()
