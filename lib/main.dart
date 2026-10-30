@@ -517,24 +517,6 @@ class _RemoteHomeState extends State<RemoteHome> {
     }
   }
 
-  Widget _swipeTouchSurface({double? height}) => GestureDetector(
-    onTap: () { if (hapticFeedback) HapticFeedback.lightImpact(); _sendKey(23); },
-    onPanStart: (_) => _beginTouchGesture(), onPanUpdate: _handleTouchGesture,
-    child: Container(height: height, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFF202126), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white12)), child: const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.swipe, size: 54, color: Color(0xFFB9F36A)), SizedBox(height: 12), Text('Swipe based touchpad'), Text('滑動移動・點擊確認', style: TextStyle(color: Colors.white60, fontSize: 12))]))),
-  );
-
-  Widget _swipeRemoteLayout() => LayoutBuilder(builder: (context, constraints) {
-    final wide = constraints.maxWidth > constraints.maxHeight && constraints.maxWidth > 600;
-    if (wide) return Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 12), child: Row(children: [
-      Expanded(flex: 5, child: Column(children: [_topRemoteActions(), const SizedBox(height: 12), Expanded(child: _swipeTouchSurface())])),
-      const SizedBox(width: 18),
-      Expanded(flex: 4, child: SingleChildScrollView(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [_volumeControls(), const SizedBox(height: 22), _channelControls(), const SizedBox(height: 22), _mediaControls()]))),
-    ]));
-    return SingleChildScrollView(padding: const EdgeInsets.fromLTRB(18, 6, 18, 24), child: Column(children: [
-      _topRemoteActions(), const SizedBox(height: 16), _swipeTouchSurface(height: (constraints.maxHeight * .42).clamp(220.0, 280.0)), const SizedBox(height: 18), _volumeControls(), const SizedBox(height: 14), _channelControls(), const SizedBox(height: 14), _mediaControls(),
-    ]));
-  });
-
   Widget _remoteServiceStatus() {
     if (!connected) return const Text('電視遙控服務：未連線', style: TextStyle(color: Colors.white38, fontSize: 11));
     if (!remoteServiceKnown) return const Text('電視遙控服務：等待狀態回報…', style: TextStyle(color: Colors.white38, fontSize: 11));
