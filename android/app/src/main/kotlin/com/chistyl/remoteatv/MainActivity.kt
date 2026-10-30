@@ -24,6 +24,12 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
+import java.io.File
+import java.util.Date
+import org.bouncycastle.asn1.x500.X500Name
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.security.PrivateKey
@@ -40,6 +46,8 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 private const val KEYCODE_MAX = 1000
+private const val CLIENT_IDENTITY_ALIAS = "remote_atv_client_identity"
+private val CLIENT_IDENTITY_PASSWORD = "RemoteATV-client-keystore".toCharArray()
 
 class MainActivity : FlutterActivity() {
     private val methodChannelName = "remote_atv/discovery"
@@ -203,9 +211,9 @@ class MainActivity : FlutterActivity() {
                         getSharedPreferences("remote_atv", Context.MODE_PRIVATE).edit()
                             .remove("paired_host").remove("paired_name").remove("paired_service_type").remove("paired_nickname")
                             .remove("remote_port").remove("server_cert_sha256").apply()
-                        // Explicit device deletion also removes this app's client identity from Android Keystore.
-                        try { KeyStore.getInstance("AndroidKeyStore").apply { load(null); deleteEntry("remote_atv_client_identity") } }
-                        catch (e: Exception) { Log.w("RemoteATV", "Unable to remove pairing key", e) }
+                        // Explicit device deletion also removes this app's persisted client identity.
+                        try { clientIdentityFile().delete() }
+                        catch (e: Exception) { Log.w("RemoteATV", "Unable to remove pairing identity", e) }
                         result.success(true)
                     }
                     else -> result.notImplemented()
@@ -506,11 +514,10 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun createRemoteSslContext(): SSLContext {
-        val alias = "remote_atv_client_identity"
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        if (!keyStore.containsAlias(alias)) throw IllegalStateException("尚未完成配對，請先配對電視")
+        val keyStore = loadClientIdentityStore(createIfMissing = false)
+            ?: throw IllegalStateException("尚未完成配對，請先配對電視")
         val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-        kmf.init(keyStore, null)
+        kmf.init(keyStore, CLIENT_IDENTITY_PASSWORD)
         val expected = getSharedPreferences("remote_atv", Context.MODE_PRIVATE).getString("server_cert_sha256", null)
             ?: throw IllegalStateException("找不到電視信任憑證，請重新配對")
         val trust = arrayOf<TrustManager>(object : X509TrustManager {
@@ -937,55 +944,43 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun createPairingSslContext(): SSLContext {
-        val alias = "remote_atv_client_identity"
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    private fun clientIdentityFile(): File = File(filesDir, "remote_atv_client_identity.p12")
 
-        // Conscrypt may select RSA-PSS when the TV requests a client-certificate
-        // signature. Android Keystore keys created without raw RSA (NoPadding)
-        // authorization can fail inside OpenSSL with RSA routines: internal error.
-        // Recreate only legacy/incompatible keys; keep a compatible identity stable
-        // so already-paired TVs are not needlessly unpaired.
-        var regenerateIdentity = !keyStore.containsAlias(alias)
-        if (!regenerateIdentity) {
-            try {
-                val privateKey = keyStore.getKey(alias, null) as? PrivateKey
-                    ?: throw IllegalStateException("Existing client identity has no private key")
-                val keyInfo = KeyFactory.getInstance(privateKey.algorithm, "AndroidKeyStore")
-                    .getKeySpec(privateKey, KeyInfo::class.java)
-                val requiredPurposes = KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
-                val requiredSignaturePaddings = setOf(
-                    KeyProperties.SIGNATURE_PADDING_RSA_PKCS1,
-                    KeyProperties.SIGNATURE_PADDING_RSA_PSS
-                )
-                regenerateIdentity =
-                    (keyInfo.purposes and requiredPurposes) != requiredPurposes ||
-                    !requiredSignaturePaddings.all { required -> keyInfo.signaturePaddings.contains(required) }
-            } catch (e: Exception) {
-                Log.w("RemoteATV", "Existing client identity is incompatible; regenerating it", e)
-                regenerateIdentity = true
-            }
+    private fun loadClientIdentityStore(createIfMissing: Boolean): KeyStore? {
+        val file = clientIdentityFile()
+        val store = KeyStore.getInstance("PKCS12")
+        if (file.exists()) {
+            file.inputStream().use { store.load(it, CLIENT_IDENTITY_PASSWORD) }
+            return store
         }
-        if (regenerateIdentity) {
-            if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
-            val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
-            val spec = KeyGenParameterSpec.Builder(
-                alias,
-                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
-            )
-                .setKeySize(2048)
-                .setDigests(KeyProperties.DIGEST_SHA256)
-                .setSignaturePaddings(
-                    KeyProperties.SIGNATURE_PADDING_RSA_PKCS1,
-                    KeyProperties.SIGNATURE_PADDING_RSA_PSS
-                )
-                .build()
-            generator.initialize(spec)
-            generator.generateKeyPair()
-            keyStore.load(null)
-        }
+        if (!createIfMissing) return null
+
+        // Use a regular software RSA key stored in the app-private directory.
+        // This avoids provider-specific Android Keystore signing failures in Conscrypt.
+        val generator = KeyPairGenerator.getInstance("RSA")
+        generator.initialize(2048, SecureRandom())
+        val pair = generator.generateKeyPair()
+        val now = System.currentTimeMillis()
+        val subject = X500Name("CN=Remote ATV Client")
+        val serial = BigInteger(160, SecureRandom()).abs().max(BigInteger.ONE)
+        val certBuilder = JcaX509v3CertificateBuilder(
+            subject, serial, Date(now - 60_000L),
+            Date(now + 315_360_000_000L), subject, pair.public
+        )
+        val signer = JcaContentSignerBuilder("SHA256withRSA").build(pair.private)
+        val certificate = JcaX509CertificateConverter().getCertificate(certBuilder.build(signer))
+        certificate.verify(pair.public)
+        store.load(null)
+        store.setKeyEntry(CLIENT_IDENTITY_ALIAS, pair.private, CLIENT_IDENTITY_PASSWORD, arrayOf(certificate))
+        file.outputStream().use { store.store(it, CLIENT_IDENTITY_PASSWORD) }
+        return store
+    }
+
+    private fun createPairingSslContext(): SSLContext {
+        val keyStore = loadClientIdentityStore(createIfMissing = true)
+            ?: throw IllegalStateException("無法建立手機配對憑證")
         val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-        kmf.init(keyStore, null)
+        kmf.init(keyStore, CLIENT_IDENTITY_PASSWORD)
         val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) { }
@@ -995,11 +990,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun getClientCertificate(): X509Certificate {
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        return ks.getCertificate("remote_atv_client_identity") as? X509Certificate
+        val store = loadClientIdentityStore(createIfMissing = false)
+            ?: throw IllegalStateException("手機安全憑證尚未建立，請重新開始配對")
+        return store.getCertificate(CLIENT_IDENTITY_ALIAS) as? X509Certificate
             ?: throw IllegalStateException("手機安全憑證尚未建立，請重新開始配對")
     }
-
     private fun pairingRequest(name: String): ByteArray {
         val nested = ByteArrayOutputStream().apply {
             write(lengthDelimited(1, "atvremote".toByteArray(Charsets.UTF_8)))
