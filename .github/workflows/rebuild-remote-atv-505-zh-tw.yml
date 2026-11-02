@@ -30,23 +30,48 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Apktool
+      - name: Install Apktool and OpenCC
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar -o apktool.jar
           java -jar apktool.jar --version
+          python3 -m pip install --user opencc-python-reimplemented
 
-      - name: Decode, replace Chinese locale resources, and rebuild
+      - name: Decode and convert all Android Chinese resources to Taiwan Traditional
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p work output
           java -jar apktool.jar d -f "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" -o work/decoded
-          test -s work/decoded/res/values-zh-rTW/strings.xml
-          test -s work/decoded/res/values-zh-rMO/strings.xml
-          cp work/decoded/res/values-zh-rTW/strings.xml work/decoded/res/values-zh-rCN/strings.xml
-          cp work/decoded/res/values-zh-rMO/strings.xml work/decoded/res/values-zh/strings.xml
+          cat > work/convert_zh.py <<'PY'
+          import os, glob, xml.etree.ElementTree as ET
+          from opencc import OpenCC
+          cc = OpenCC('s2twp')
+          roots = glob.glob('work/decoded/res/values-zh*/')
+          changed = 0
+          for root in roots:
+              for path in glob.glob(os.path.join(root, '*.xml')):
+                  try:
+                      tree = ET.parse(path)
+                  except ET.ParseError:
+                      continue
+                  for node in tree.iter():
+                      if node.text:
+                          new = cc.convert(node.text)
+                          if new != node.text:
+                              node.text = new
+                              changed += 1
+                      if node.tail:
+                          new = cc.convert(node.tail)
+                          if new != node.tail:
+                              node.tail = new
+                              changed += 1
+                  tree.write(path, encoding='utf-8', xml_declaration=True)
+          print(f'Converted {changed} Android resource text nodes across {len(roots)} Chinese locale directories')
+          PY
+          PYTHONPATH="$HOME/.local/lib/python3.*/site-packages" python3 work/convert_zh.py
+          find work/decoded/res -maxdepth 2 -type d -name 'values-zh*' -print
           java -jar apktool.jar b work/decoded -o work/Remote_ATV_5.0.5_zh_TW_unsigned.apk
           test -s work/Remote_ATV_5.0.5_zh_TW_unsigned.apk
           sha256sum work/Remote_ATV_5.0.5_zh_TW_unsigned.apk
