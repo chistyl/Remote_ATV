@@ -60,7 +60,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(TextView(this).apply {
+        topHeader.addView(TextView(this).apply {
             text = "TV Remote"
             textSize = 23f
             setTextColor(WHITE)
@@ -85,7 +85,7 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(4), dp(4), dp(4))
         }
         listOf("遙控器" to PAGE_REMOTE, "觸控板" to PAGE_TOUCH, "鍵盤" to PAGE_KEYBOARD, "輸入源" to PAGE_INPUT).forEach { (label, page) ->
-            nav.addView(chipButton(label, page == activePage) { showPage(page) }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+            navBar.addView(chipButton(label, page == activePage) { showPage(page) }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
                 leftMargin = dp(2); rightMargin = dp(2)
             })
         }
