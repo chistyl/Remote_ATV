@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.protobuf") version "0.9.4"
+    id("com.google.protobuf")
 }
 
 android {
@@ -29,4 +29,5 @@ protobuf {
 
 dependencies {
     implementation("com.google.protobuf:protobuf-javalite:3.25.5")
+    testImplementation("junit:junit:4.13.2")
 }
