@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'input/*.apk'
+      - '.github/workflows/sign-apk.yml'
 
 permissions:
   contents: read
