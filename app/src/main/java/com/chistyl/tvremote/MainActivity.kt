@@ -120,12 +120,13 @@ class MainActivity : Activity() {
 
     private fun startTvPairing() {
         val host = ipInput.text.toString().trim()
-        if (host.isBlank()) {
-            Toast.makeText(this, "請先搜尋並選取電視，或輸入電視 IP", Toast.LENGTH_SHORT).show()
+        val port = portInput.text.toString().trim().toIntOrNull()
+        if (host.isBlank() || port == null || port !in 1..65535) {
+            Toast.makeText(this, "請輸入正確的電視 IP 與配對連接埠", Toast.LENGTH_SHORT).show()
             return
         }
         pairingSession?.close()
-        val session = TvPairingSession(TvTlsIdentity(this), host)
+        val session = TvPairingSession(TvTlsIdentity(this), host, port)
         pairingSession = session
         status.text = "正在建立 TLS 配對連線…"
         io.execute {
@@ -168,8 +169,13 @@ class MainActivity : Activity() {
             Toast.makeText(this, "請先選取電視或輸入 IP", Toast.LENGTH_SHORT).show()
             return
         }
+        val tlsIdentity = TvTlsIdentity(this)
+        if (!tlsIdentity.isPaired(host)) {
+            Toast.makeText(this, "此電視尚未完成配對，請先輸入 PIN 配對", Toast.LENGTH_SHORT).show()
+            return
+        }
         remoteClient?.close()
-        val client = RemoteControlClient(TvTlsIdentity(this), host) { message ->
+        val client = RemoteControlClient(tlsIdentity, host) { message ->
             runOnUiThread { status.text = message }
         }
         remoteClient = client
