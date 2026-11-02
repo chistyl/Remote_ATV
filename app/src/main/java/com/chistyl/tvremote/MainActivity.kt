@@ -28,6 +28,7 @@ class MainActivity : Activity() {
     private var pairingSession: TvPairingSession? = null
     private var remoteClient: RemoteControlClient? = null
     private lateinit var pinInput: EditText
+    private lateinit var textInput: EditText
     private val seen = linkedSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,6 +93,38 @@ class MainActivity : Activity() {
         root.addView(Button(this).apply {
             text = "連線遙控（TLS 6466）"
             setOnClickListener { connectRemote() }
+        })
+        root.addView(TextView(this).apply {
+            text = "文字輸入"
+            textSize = 16f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, 20, 0, 8)
+        })
+        textInput = EditText(this).apply {
+            hint = "先讓電視端游標停在文字輸入欄，再輸入內容"
+            singleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0xFF778196.toInt())
+            setPadding(16, 8, 16, 8)
+            setBackgroundColor(0xFF171C26.toInt())
+        }
+        root.addView(textInput, LinearLayout.LayoutParams(-1, -2))
+        root.addView(Button(this).apply {
+            text = "傳送文字到電視"
+            setOnClickListener {
+                val client = remoteClient
+                val value = textInput.text.toString()
+                if (client == null) {
+                    Toast.makeText(this@MainActivity, "請先連線遙控", Toast.LENGTH_SHORT).show()
+                } else if (!client.canSendText) {
+                    Toast.makeText(this@MainActivity, "請先在電視端開啟並選取文字輸入欄位", Toast.LENGTH_LONG).show()
+                } else {
+                    runCatching { client.sendText(value) }
+                        .onSuccess { textInput.text.clear(); status.text = "文字已送出" }
+                        .onFailure { status.text = "文字傳送失敗：" + it.localizedMessage }
+                }
+            }
         })
         root.addView(buildRemotePad())
         root.addView(buildTouchpad())
