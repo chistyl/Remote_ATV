@@ -58,13 +58,13 @@ class MainActivity : Activity() {
             setTextColor(0xFFFFFFFF.toInt()); setPadding(0, 24, 0, 8)
         })
         ipInput = EditText(this).apply {
-            hint = "例如 192.168.1.100"; singleLine = true
+            hint = "例如 192.168.1.100"; setSingleLine(true)
             setTextColor(0xFFFFFFFF.toInt()); setHintTextColor(0xFF778196.toInt())
             setPadding(16, 8, 16, 8); setBackgroundColor(0xFF171C26.toInt())
         }
         root.addView(ipInput, LinearLayout.LayoutParams(-1, -2))
         portInput = EditText(this).apply {
-            hint = "配對連接埠（預設 6467）"; setText("6467"); singleLine = true
+            hint = "配對連接埠（預設 6467）"; setText("6467"); setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setTextColor(0xFFFFFFFF.toInt()); setHintTextColor(0xFF778196.toInt())
             setPadding(16, 8, 16, 8); setBackgroundColor(0xFF171C26.toInt())
@@ -74,7 +74,7 @@ class MainActivity : Activity() {
         root.addView(Button(this).apply { text = "開始電視配對"; setOnClickListener { startTvPairing() } })
         pinInput = EditText(this).apply {
             hint = "輸入電視顯示的 6 位配對碼"
-            singleLine = true
+            setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
             setTextColor(0xFFFFFFFF.toInt())
             setHintTextColor(0xFF778196.toInt())
@@ -102,7 +102,7 @@ class MainActivity : Activity() {
         })
         textInput = EditText(this).apply {
             hint = "先讓電視端游標停在文字輸入欄，再輸入內容"
-            singleLine = true
+            setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             setTextColor(0xFFFFFFFF.toInt())
             setHintTextColor(0xFF778196.toInt())
