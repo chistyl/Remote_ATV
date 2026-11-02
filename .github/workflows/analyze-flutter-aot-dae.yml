@@ -14,17 +14,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download DAE analyzer
+      - name: Download latest DAE analyzer
         shell: bash
         run: |
           set -euo pipefail
-          URL="https://github.com/ejfkdev/dae/releases/download/v0.1.17/dae-Linux-x64"
+          URL="https://github.com/ejfkdev/dae/releases/latest/download/dae-Linux-x64"
           curl -fL --retry 3 --retry-all-errors "$URL" -o /tmp/dae
           test -s /tmp/dae
-          echo "Downloaded DAE SHA-256:"
-          sha256sum /tmp/dae
           chmod +x /tmp/dae
-          /tmp/dae version
+          /tmp/dae version | tee work-dae-version.txt
 
       - name: Extract Flutter libapp.so
         shell: bash
@@ -32,37 +30,38 @@ jobs:
           set -euo pipefail
           APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
           test -f "$APK"
-          mkdir -p work/analysis
+          mkdir -p work/analysis work/diagnostics
           unzip -p "$APK" lib/arm64-v8a/libapp.so > work/analysis/libapp.so
           test -s work/analysis/libapp.so
-          file work/analysis/libapp.so
+          file work/analysis/libapp.so | tee work/diagnostics/elf.txt
+          sha256sum work/analysis/libapp.so | tee work/diagnostics/libapp.sha256
 
-      - name: Analyze AOT snapshot and string references
+      - name: Probe snapshot and export object layer
         shell: bash
+        continue-on-error: true
         run: |
-          set -euo pipefail
-          /tmp/dae export work/analysis/libapp.so work/dae-out --decompile
-          mkdir -p work/targeted
-          for phrase in "电视机" "请确保您的电视已打开并连接到同一 Wi-Fi 网络。" "平滑按压" "远程行为" "连接的设备"; do
-            safe=$(printf '%s' "$phrase" | sha256sum | cut -c1-12)
-            {
-              echo "===== $phrase ====="
-              /tmp/dae strings work/analysis/libapp.so -f "$phrase" || true
-              /tmp/dae findrefs work/analysis/libapp.so string "$phrase" || true
-            } >> "work/targeted/$safe.txt"
-          done
-          find work/dae-out -maxdepth 3 -type f -print
-          cp work/dae-out/text/strings.txt work/targeted/strings.txt
-          cp work/dae-out/text/pp.txt work/targeted/pp.txt
-          cp work/dae-out/text/functions.txt work/targeted/functions.txt
-          cp work/dae-out/text/libs.txt work/targeted/libs.txt
+          set +e
+          /tmp/dae info work/analysis/libapp.so > work/diagnostics/info.txt 2>&1
+          echo "dae info exit=$?" >> work/diagnostics/exit-codes.txt
+          /tmp/dae strings work/analysis/libapp.so > work/diagnostics/strings.txt 2>&1
+          echo "dae strings exit=$?" >> work/diagnostics/exit-codes.txt
+          /tmp/dae pp work/analysis/libapp.so > work/diagnostics/pp.txt 2>&1
+          echo "dae pp exit=$?" >> work/diagnostics/exit-codes.txt
+          /tmp/dae export work/analysis/libapp.so work/dae-out > work/diagnostics/export.txt 2>&1
+          echo "dae export exit=$?" >> work/diagnostics/exit-codes.txt
+          /tmp/dae export work/analysis/libapp.so work/dae-out --decompile > work/diagnostics/decompile.txt 2>&1
+          echo "dae export --decompile exit=$?" >> work/diagnostics/exit-codes.txt
+          find work -maxdepth 4 -type f -printf '%p %s bytes\n' > work/diagnostics/files.txt
+          exit 0
 
-      - name: Upload DAE analysis
+      - name: Upload DAE diagnostics and analysis
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Remote-ATV-5.0.5-DAE-AOT-analysis
+          name: Remote-ATV-5.0.5-DAE-diagnostics
           path: |
+            work/diagnostics/
             work/dae-out/
-            work/targeted/
-          if-no-files-found: error
+            work-dae-version.txt
+          if-no-files-found: warn
           retention-days: 14
