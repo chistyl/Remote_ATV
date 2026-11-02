@@ -13,6 +13,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.chistyl.tvremote.discovery.TvDevice
 import com.chistyl.tvremote.discovery.TvDiscoveryManager
+import com.chistyl.tvremote.protocol.TvPairingSession
+import com.chistyl.tvremote.security.TvTlsIdentity
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
@@ -21,6 +23,8 @@ class MainActivity : Activity() {
     private lateinit var portInput: EditText
     private val io = Executors.newSingleThreadExecutor()
     private var discovery: TvDiscoveryManager? = null
+    private var pairingSession: TvPairingSession? = null
+    private lateinit var pinInput: EditText
     private val seen = linkedSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +67,18 @@ class MainActivity : Activity() {
         }
         root.addView(portInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 8 })
         root.addView(Button(this).apply { text = "測試配對服務連線"; setOnClickListener { testPairingPort() } })
+        root.addView(Button(this).apply { text = "開始電視配對"; setOnClickListener { startTvPairing() } })
+        pinInput = EditText(this).apply {
+            hint = "輸入電視顯示的 6 位配對碼"
+            singleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0xFF778196.toInt())
+            setPadding(16, 8, 16, 8)
+            setBackgroundColor(0xFF171C26.toInt())
+        }
+        root.addView(pinInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 8 })
+        root.addView(Button(this).apply { text = "確認配對碼"; setOnClickListener { finishTvPairing() } })
         devices = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(devices)
         root.addView(TextView(this).apply {
@@ -95,6 +111,50 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun startTvPairing() {
+        val host = ipInput.text.toString().trim()
+        if (host.isBlank()) {
+            Toast.makeText(this, "請先搜尋並選取電視，或輸入電視 IP", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pairingSession?.close()
+        val session = TvPairingSession(TvTlsIdentity(this), host)
+        pairingSession = session
+        status.text = "正在建立 TLS 配對連線…"
+        io.execute {
+            val result = runCatching { session.startPairing() }
+            runOnUiThread {
+                status.text = result.getOrElse {
+                    pairingSession = null
+                    "配對初始化失敗：${it.localizedMessage ?: it.javaClass.simpleName}"
+                }
+            }
+        }
+    }
+
+    private fun finishTvPairing() {
+        val session = pairingSession
+        if (session == null) {
+            Toast.makeText(this, "請先按「開始電視配對」", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val code = pinInput.text.toString().trim()
+        if (code.length != 6) {
+            Toast.makeText(this, "請輸入 6 位配對碼", Toast.LENGTH_SHORT).show()
+            return
+        }
+        status.text = "正在驗證配對碼…"
+        io.execute {
+            val result = runCatching { session.finishPairing(code) }
+            runOnUiThread {
+                status.text = result.getOrElse {
+                    "配對失敗：${it.localizedMessage ?: it.javaClass.simpleName}"
+                }
+                pairingSession = null
+                if (result.isSuccess) pinInput.text.clear()
+            }
+        }
+    }
     private fun addDevice(device: TvDevice) = runOnUiThread {
         val key = "${device.name}|${device.endpoint}"
         if (!seen.add(key)) return@runOnUiThread
@@ -112,6 +172,6 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        discovery?.stop(); io.shutdownNow(); super.onDestroy()
+        discovery?.stop(); pairingSession?.close(); io.shutdownNow(); super.onDestroy()
     }
 }
