@@ -51,8 +51,8 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
             --ks work/remote-atv-release.jks \
             --ks-key-alias remoteatv \
-            --ks-pass "pass:remoteatv-temp-signing-pass-2026" \
-            --key-pass "pass:remoteatv-temp-signing-pass-2026" \
+            --ks-pass "pass:$SIGN_PASS" \
+            --key-pass "pass:$SIGN_PASS" \
             --out output/Remote_ATV_5.0.5_signed.apk \
             work/aligned.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs output/Remote_ATV_5.0.5_signed.apk
