@@ -23,6 +23,7 @@ class RemoteControlClient(
     private val closed = AtomicBoolean(false)
     private val writeLock = Any()
     @Volatile private var started = false
+    @Volatile private var negotiatedFeatures = 0
 
     fun connect(timeoutSeconds: Long = 12): Boolean {
         check(socket == null) { "Remote client is already connected" }
@@ -38,7 +39,7 @@ class RemoteControlClient(
         return true
     }
 
-    fun sendKey(keyCode: Int, direction: Int = RemoteDirection.SHORT_VALUE) {
+    fun sendKey(keyCode: Int, direction: Int = 3) {
         check(started && !closed.get()) { "TV remote is not connected" }
         val key = RemoteKeyInject.newBuilder()
             .setKeyCodeValue(keyCode)
@@ -53,9 +54,10 @@ class RemoteControlClient(
                 val message = RemoteMessage.parseFrom(ProtobufFrameCodec.readFrame(activeSocket.inputStream))
                 when {
                     message.hasRemoteConfigure() -> {
+                        negotiatedFeatures = message.remoteConfigure.code1 and REQUESTED_FEATURES
                         val response = RemoteMessage.newBuilder().setRemoteConfigure(
                             com.chistyl.tvremote.proto.RemoteConfigure.newBuilder()
-                                .setCode1(REQUESTED_FEATURES)
+                                .setCode1(negotiatedFeatures)
                                 .setDeviceInfo(RemoteDeviceInfo.newBuilder()
                                     .setUnknown1(1)
                                     .setUnknown2("1")
@@ -66,7 +68,7 @@ class RemoteControlClient(
                     }
                     message.hasRemoteSetActive() -> send(
                         RemoteMessage.newBuilder().setRemoteSetActive(
-                            com.chistyl.tvremote.proto.RemoteSetActive.newBuilder().setActive(REQUESTED_FEATURES)
+                            com.chistyl.tvremote.proto.RemoteSetActive.newBuilder().setActive(negotiatedFeatures)
                         ).build()
                     )
                     message.hasRemoteStart() -> {
@@ -114,6 +116,6 @@ class RemoteControlClient(
 
     companion object {
         // PING | KEY | IME | POWER | VOLUME | APP_LINK, matching androidtvremote2.
-        const val REQUESTED_FEATURES = 1 or 2 or 4 or 32 or 64 or 512
+        const val REQUESTED_FEATURES = 615
     }
 }
