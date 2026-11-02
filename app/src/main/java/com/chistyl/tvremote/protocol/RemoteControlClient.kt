@@ -39,7 +39,7 @@ class RemoteControlClient(
         return true
     }
 
-    fun sendKey(keyCode: Int, direction: Int = 3) {
+    fun sendKey(keyCode: Int, direction: Int = DIRECTION_SHORT) {
         check(started && !closed.get()) { "TV remote is not connected" }
         check((negotiatedFeatures and FEATURE_KEY) != 0) { "This TV does not advertise key injection support" }
         val key = RemoteKeyInject.newBuilder()
@@ -48,6 +48,10 @@ class RemoteControlClient(
             .build()
         send(RemoteMessage.newBuilder().setRemoteKeyInject(key).build())
     }
+
+    fun startLongPress(keyCode: Int) = sendKey(keyCode, DIRECTION_START_LONG)
+
+    fun endLongPress(keyCode: Int) = sendKey(keyCode, DIRECTION_END_LONG)
 
     private fun readLoop(activeSocket: SSLSocket) {
         try {
@@ -118,6 +122,9 @@ class RemoteControlClient(
     companion object {
         // PING | KEY | IME | POWER | VOLUME | APP_LINK, matching androidtvremote2.
         const val REQUESTED_FEATURES = 615
+        const val DIRECTION_START_LONG = 1
+        const val DIRECTION_END_LONG = 2
+        const val DIRECTION_SHORT = 3
         private const val FEATURE_KEY = 2
     }
 }
