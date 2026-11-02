@@ -1,0 +1,51 @@
+name: Analyze Remote ATV APK locales
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download APKTool
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar -o apktool.jar
+          java -jar apktool.jar --version
+
+      - name: Decode Android resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
+          test -s "$APK"
+          java -jar apktool.jar d -f --no-src "$APK" -o decoded
+          find decoded/res -type f -path '*/values*/*' -name '*.xml' -print0 | xargs -0 grep -nH -E '[一-龥]' > chinese-resource-lines.txt || true
+          grep -nH -E '[一-龥]' decoded/res/values*/strings.xml >> chinese-resource-lines.txt 2>/dev/null || true
+          echo "Decoded resource files: $(find decoded/res -type f | wc -l)"
+          echo "Chinese resource lines: $(wc -l < chinese-resource-lines.txt)"
+
+      - name: Package analysis output
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-locale-analysis
+          path: |
+            decoded/res/
+            decoded/apktool.yml
+            chinese-resource-lines.txt
+          if-no-files-found: error
+          retention-days: 14
