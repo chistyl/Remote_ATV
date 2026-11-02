@@ -3,6 +3,7 @@ package com.chistyl.tvremote
 import android.app.Activity
 import android.os.Bundle
 import android.view.Gravity
+import android.view.MotionEvent
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
@@ -93,6 +94,7 @@ class MainActivity : Activity() {
             setOnClickListener { connectRemote() }
         })
         root.addView(buildRemotePad())
+        root.addView(buildTouchpad())
         setContentView(root)
     }
 
@@ -200,10 +202,23 @@ class MainActivity : Activity() {
                 row.addView(Button(this).apply {
                     text = label
                     isAllCaps = false
-                    setOnClickListener {
+                    setOnTouchListener { view, event ->
                         val client = remoteClient
-                        if (client == null) Toast.makeText(this@MainActivity, "請先連線遙控", Toast.LENGTH_SHORT).show()
-                        else runCatching { client.sendKey(code) }.onFailure { status.text = "指令失敗：" + it.localizedMessage }
+                        if (event.action == MotionEvent.ACTION_DOWN) {
+                            if (client == null) {
+                                Toast.makeText(this@MainActivity, "請先連線遙控", Toast.LENGTH_SHORT).show()
+                                return@setOnTouchListener true
+                            }
+                            view.isPressed = true
+                            runCatching { client.startLongPress(code) }
+                                .onFailure { status.text = "長按指令失敗：" + it.localizedMessage }
+                            true
+                        } else if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+                            view.isPressed = false
+                            if (client != null) runCatching { client.endLongPress(code) }
+                                .onFailure { status.text = "結束長按失敗：" + it.localizedMessage }
+                            true
+                        } else true
                     }
                 }, LinearLayout.LayoutParams(0, 54, 1f).apply { setMargins(4, 4, 4, 4) })
             }
@@ -214,6 +229,35 @@ class MainActivity : Activity() {
         addRow("音量－" to 25, "▼" to 20, "音量＋" to 24)
         addRow("靜音" to 164, "播放／暫停" to 85, "電源" to 26)
         return panel
+    }
+
+    private fun buildTouchpad(): LinearLayout {
+        val section = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 12)
+        }
+        section.addView(TextView(this).apply {
+            text = "觸控板"
+            textSize = 16f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, 8, 0, 8)
+        })
+        section.addView(RemoteTouchpadView(this) { keyCode ->
+            val client = remoteClient
+            if (client == null) {
+                Toast.makeText(this, "請先連線遙控", Toast.LENGTH_SHORT).show()
+            } else {
+                runCatching { client.sendKey(keyCode) }
+                    .onFailure { status.text = "觸控操作失敗：" + it.localizedMessage }
+            }
+        }, LinearLayout.LayoutParams(-1, 180))
+        section.addView(TextView(this).apply {
+            text = "滑動：方向移動　點一下：確認　按住方向鍵：長按"
+            textSize = 12f
+            setTextColor(0xFF778196.toInt())
+            setPadding(0, 6, 0, 0)
+        })
+        return section
     }
 
     private fun addDevice(device: TvDevice) = runOnUiThread {
