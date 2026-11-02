@@ -5,7 +5,7 @@
 ## 開發基準
 - GitHub 為唯一主要版本管理與交付來源。
 - 開發分支：`dev/tvremote-rebuild-0.2.0`
-- 目前版本：0.3.0-dev
+- 目前版本：0.4.0-dev
 - Android 原生 Kotlin 專案。
 - 依公開 Android TV Remote 協定重新實作，不直接複製原 App 的品牌素材或專有程式碼。
 
@@ -17,7 +17,9 @@
 - TCP 連線診斷（僅代表 TCP 可達，不代表 TLS 或配對成功）
 - 深色基礎介面
 
-## 0.3.0-dev 新增
+## 0.3.0-dev protocol foundation
+
+## 0.4.0-dev TLS pairing integration
 - Android TV Remote v2 與 Polo protobuf schema，透過 Gradle Protobuf Lite 自動產生 Java 類別
 - Protobuf varint 長度前綴 framing 與邊界測試
 - 六位十六進位配對碼格式驗證
