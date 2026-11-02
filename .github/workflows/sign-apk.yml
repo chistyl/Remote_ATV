@@ -41,6 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          SIGN_PASS="$(openssl rand -hex 24)"
           keytool -genkeypair -v \
             -keystore work/remote-atv-release.jks \
             -storepass "$SIGN_PASS" \
