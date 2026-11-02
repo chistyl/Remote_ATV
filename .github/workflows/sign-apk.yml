@@ -43,8 +43,8 @@ jobs:
           set -euo pipefail
           keytool -genkeypair -v \
             -keystore work/remote-atv-release.jks \
-            -storepass "remoteatv-temp-signing-pass-2026" \
-            -keypass "remoteatv-temp-signing-pass-2026" \
+            -storepass "$SIGN_PASS" \
+            -keypass "$SIGN_PASS" \
             -alias remoteatv \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Remote ATV 5.0.5 Local Rebuild"
