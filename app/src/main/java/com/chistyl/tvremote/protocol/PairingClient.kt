@@ -38,6 +38,8 @@ class PairingClient(private val socket: SSLSocket) : Closeable {
                 message.hasOptions() -> send(configurationMessage())
                 message.hasConfigurationAck() -> {
                     pairingStarted = true
+                    // Keep the pairing socket alive while the user reads and enters the TV PIN.
+                    socket.soTimeout = 120_000
                     val peer = socket.session.peerCertificates.firstOrNull() as? X509Certificate
                         ?: error("TV did not present an X.509 certificate")
                     return peer
