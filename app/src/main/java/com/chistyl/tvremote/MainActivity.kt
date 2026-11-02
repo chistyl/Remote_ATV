@@ -14,6 +14,7 @@ import android.widget.TextView
 import com.chistyl.tvremote.discovery.TvDevice
 import com.chistyl.tvremote.discovery.TvDiscoveryManager
 import com.chistyl.tvremote.protocol.TvPairingSession
+import com.chistyl.tvremote.protocol.RemoteControlClient
 import com.chistyl.tvremote.security.TvTlsIdentity
 
 class MainActivity : Activity() {
@@ -24,6 +25,7 @@ class MainActivity : Activity() {
     private val io = Executors.newSingleThreadExecutor()
     private var discovery: TvDiscoveryManager? = null
     private var pairingSession: TvPairingSession? = null
+    private var remoteClient: RemoteControlClient? = null
     private lateinit var pinInput: EditText
     private val seen = linkedSetOf<String>()
 
@@ -82,10 +84,15 @@ class MainActivity : Activity() {
         devices = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(devices)
         root.addView(TextView(this).apply {
-            text = "目前版本先完成裝置探索。配對、TLS 與遙控指令尚未接通。"
+            text = "已配對後可連線遙控。方向鍵、返回、首頁、音量與播放控制。"
             textSize = 12f; setTextColor(0xFF778196.toInt()); gravity = Gravity.BOTTOM
             setPadding(0, 28, 0, 0)
         })
+        root.addView(Button(this).apply {
+            text = "連線遙控（TLS 6466）"
+            setOnClickListener { connectRemote() }
+        })
+        root.addView(buildRemotePad())
         setContentView(root)
     }
 
@@ -155,6 +162,54 @@ class MainActivity : Activity() {
             }
         }
     }
+    private fun connectRemote() {
+        val host = ipInput.text.toString().trim()
+        if (host.isBlank()) {
+            Toast.makeText(this, "請先選取電視或輸入 IP", Toast.LENGTH_SHORT).show()
+            return
+        }
+        remoteClient?.close()
+        val client = RemoteControlClient(TvTlsIdentity(this), host) { message ->
+            runOnUiThread { status.text = message }
+        }
+        remoteClient = client
+        status.text = "正在連線電視遙控通道…"
+        io.execute {
+            val result = runCatching { client.connect() }
+            runOnUiThread {
+                status.text = if (result.isSuccess) "遙控器已連線" else "遙控連線失敗：" + (result.exceptionOrNull()?.localizedMessage ?: "未知錯誤")
+                if (result.isFailure) remoteClient = null
+            }
+        }
+    }
+
+    private fun buildRemotePad(): LinearLayout {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 12, 0, 12)
+        }
+        fun addRow(vararg keys: Pair<String, Int>) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+            keys.forEach { (label, code) ->
+                row.addView(Button(this).apply {
+                    text = label
+                    isAllCaps = false
+                    setOnClickListener {
+                        val client = remoteClient
+                        if (client == null) Toast.makeText(this@MainActivity, "請先連線遙控", Toast.LENGTH_SHORT).show()
+                        else runCatching { client.sendKey(code) }.onFailure { status.text = "指令失敗：" + it.localizedMessage }
+                    }
+                }, LinearLayout.LayoutParams(0, 54, 1f).apply { setMargins(4, 4, 4, 4) })
+            }
+            panel.addView(row)
+        }
+        addRow("返回" to 4, "▲" to 19, "首頁" to 3)
+        addRow("◀" to 21, "確認" to 23, "▶" to 22)
+        addRow("音量－" to 25, "▼" to 20, "音量＋" to 24)
+        addRow("靜音" to 164, "播放／暫停" to 85, "電源" to 26)
+        return panel
+    }
+
     private fun addDevice(device: TvDevice) = runOnUiThread {
         val key = "${device.name}|${device.endpoint}"
         if (!seen.add(key)) return@runOnUiThread
@@ -172,6 +227,6 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        discovery?.stop(); pairingSession?.close(); io.shutdownNow(); super.onDestroy()
+        discovery?.stop(); pairingSession?.close(); remoteClient?.close(); io.shutdownNow(); super.onDestroy()
     }
 }
