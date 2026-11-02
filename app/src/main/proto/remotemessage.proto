@@ -4,6 +4,9 @@
 syntax = "proto3";
 package remote;
 
+option java_package = "com.chistyl.tvremote.proto";
+option java_multiple_files = true;
+
 message RemoteAppLinkLaunchRequest {
   string app_link = 1;
 }
