@@ -5,7 +5,7 @@
 ## 開發基準
 - GitHub 為唯一主要版本管理與交付來源。
 - 開發分支：`dev/tvremote-rebuild-0.2.0`
-- 目前版本：0.5.0-dev
+- 目前版本：0.5.1-dev
 - Android 原生 Kotlin 專案。
 - 依公開 Android TV Remote 協定重新實作，不直接複製原 App 的品牌素材或專有程式碼。
 
@@ -22,6 +22,10 @@
 - TLS 6466 遙控連線與 RemoteConfigure / RemoteSetActive / RemoteStart 初始化
 - 遙控訊息 framing、Ping 回應
 - 方向鍵、確認、返回、首頁、音量、靜音、播放暫停與電源按鍵 UI
+
+## 0.5.1-dev 修正
+- 配對流程會使用畫面指定的配對連接埠。
+- 進入 6466 遙控連線前，先檢查該電視是否已完成 PIN 配對。
 
 ## 尚待驗證／後續開發
 - GitHub Actions APK 建置結果與安裝驗證
