@@ -82,8 +82,8 @@ class TvTlsIdentity(context: Context) {
     }
 
     private fun createContext(mode: TrustMode): SSLContext {
-        val clientStore = loadKeyStore()
         clientCertificate()
+        val clientStore = loadKeyStore()
         val keyManagers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
             init(clientStore, null)
         }.keyManagers
