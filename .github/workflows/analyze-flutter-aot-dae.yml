@@ -1,0 +1,66 @@
+name: Analyze Remote ATV 5.0.5 Flutter AOT with DAE
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download DAE analyzer
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 \
+            https://github.com/ejfkdev/dae/releases/download/v0.1.17/dae-Linux-x64 \
+            -o /tmp/dae
+          echo "2dcb6da98bae489b81ed378000b6840924aac4177aa11568668deaf08ee9eaaa  /tmp/dae" | sha256sum -c -
+          chmod +x /tmp/dae
+          /tmp/dae version
+
+      - name: Extract Flutter libapp.so
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
+          test -f "$APK"
+          mkdir -p work/analysis
+          unzip -p "$APK" lib/arm64-v8a/libapp.so > work/analysis/libapp.so
+          test -s work/analysis/libapp.so
+          file work/analysis/libapp.so
+
+      - name: Analyze AOT snapshot and string references
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/dae export work/analysis/libapp.so work/dae-out --decompile
+          mkdir -p work/targeted
+          for phrase in "电视机" "请确保您的电视已打开并连接到同一 Wi-Fi 网络。" "平滑按压" "远程行为" "连接的设备"; do
+            safe=$(printf '%s' "$phrase" | tr -cd '[:alnum:]' | cut -c1-24)
+            {
+              echo "===== $phrase ====="
+              /tmp/dae strings work/analysis/libapp.so -f "$phrase" || true
+              /tmp/dae findrefs work/analysis/libapp.so string "$phrase" || true
+            } >> "work/targeted/${safe:-target}.txt"
+          done
+          cp work/dae-out/text/strings.txt work/targeted/strings.txt
+          cp work/dae-out/text/pp.txt work/targeted/pp.txt
+          cp work/dae-out/text/functions.txt work/targeted/functions.txt
+          cp work/dae-out/text/libs.txt work/targeted/libs.txt
+
+      - name: Upload DAE analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-DAE-AOT-analysis
+          path: |
+            work/dae-out/
+            work/targeted/
+          if-no-files-found: error
+          retention-days: 14
