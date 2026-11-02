@@ -21,7 +21,9 @@ protobuf {
     generateProtoTasks {
         all().configureEach {
             builtins {
-                id("java") { option("lite") }
+                named("java") {
+                    option("lite")
+                }
             }
         }
     }
