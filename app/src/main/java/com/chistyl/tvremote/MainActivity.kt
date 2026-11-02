@@ -342,7 +342,7 @@ class MainActivity : Activity() {
         return root
     }
 
-    private fun weightedCircle() = LinearLayout.LayoutParams(0, dp(78), 1f).apply {
+    private fun weightedCircle() = LinearLayout.LayoutParams(0, dp(62), 1f).apply {
         leftMargin = dp(3); rightMargin = dp(3); topMargin = dp(3); bottomMargin = dp(3)
     }
 
@@ -355,8 +355,17 @@ class MainActivity : Activity() {
             isFocusable = true
             isClickable = true
             background = GradientDrawable().apply {
-                setColor(0xFF303033.toInt())
+                setColor(0xFF293342.toInt())
                 shape = GradientDrawable.OVAL
+                setStroke(dp(1), 0xFF3D4B5E.toInt())
+            }
+            elevation = dp(2).toFloat()
+            setOnFocusChangeListener { view, focused ->
+                view.background = GradientDrawable().apply {
+                    setColor(if (focused) 0xFF405875.toInt() else 0xFF293342.toInt())
+                    shape = GradientDrawable.OVAL
+                    setStroke(dp(if (focused) 2 else 1), if (focused) 0xFFB8D4F5.toInt() else 0xFF3D4B5E.toInt())
+                }
             }
             if (keyCode != 0) setOnTouchListener { view, event ->
                 val client = remoteClient
@@ -396,10 +405,19 @@ class MainActivity : Activity() {
             isFocusable = true
             isClickable = true
             background = GradientDrawable().apply {
-                setColor(0xFF333333.toInt())
-                cornerRadius = dp(18).toFloat()
+                setColor(0xFF293342.toInt())
+                cornerRadius = dp(22).toFloat()
+                setStroke(dp(1), 0xFF3D4B5E.toInt())
             }
+            elevation = dp(2).toFloat()
             setOnClickListener { sendKey(keyCode) }
+            setOnFocusChangeListener { view, focused ->
+                view.background = GradientDrawable().apply {
+                    setColor(if (focused) 0xFF405875.toInt() else 0xFF293342.toInt())
+                    cornerRadius = dp(22).toFloat()
+                    setStroke(dp(if (focused) 2 else 1), if (focused) 0xFFB8D4F5.toInt() else 0xFF3D4B5E.toInt())
+                }
+            }
         }
 
     private fun remoteRail(top: String, title: String, bottom: String, topKey: Int, bottomKey: Int): View =
@@ -407,8 +425,9 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                setColor(0xFF333333.toInt())
-                cornerRadius = dp(40).toFloat()
+                setColor(0xFF202A38.toInt())
+                cornerRadius = dp(28).toFloat()
+                setStroke(dp(1), 0xFF3D4B5E.toInt())
             }
             addView(remoteCircle(top, topKey, 44).apply { background = null; textSize = 28f }, LinearLayout.LayoutParams(-1, 0, 1f))
             addView(TextView(this@MainActivity).apply {
