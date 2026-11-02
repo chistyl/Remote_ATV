@@ -26,10 +26,13 @@
 - Secret / SecretAck 驗證流程（由已配置雙向 TLS 的 SSLSocket 提供連線）
 
 ## 尚未完成
-- App 內 RSA 用戶端金鑰與自簽憑證產生、加密保存及重用
-- 雙向 TLS Socket 工廠與 Android TV 自簽伺服器憑證處理
-- 將配對 UI 串接至 PairingClient，並實機驗證
+- Android Keystore RSA 2048 用戶端身分與憑證保存
+- 配對 TLS Socket、PIN 驗證後保存 TV 憑證 SHA-256 pin
+- 已配對裝置的憑證 pin 驗證 TLS Socket 工廠
+- 手機畫面已串接「開始配對 → 輸入 6 位 PIN → 確認」流程
 - 配對完成後 TLS 6466 遙控通道與 RemoteConfigure / Ping / KeyInject
+
+> TLS 配對與憑證 pinning 已加入程式碼，但尚未經真實 Android TV 裝置驗證；不可視為已確認可配對。
 - RemoteKeyInject、音量、媒體、HDMI 指令
 - Touchpad、Live Text Input、語音
 - 多語系、裝置管理及實機測試
