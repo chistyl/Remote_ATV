@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private var selectedHost = ""
     private var selectedName = ""
     private var activePage = PAGE_REMOTE
+    private var remoteSubpage = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -157,49 +158,238 @@ class MainActivity : Activity() {
     }
 
     private fun buildRemotePage(): View {
-        val c = column()
-        c.addView(heading("遙控器"))
-        c.addView(TextView(this).apply {
-            text = "以方向鍵操作電視，按住按鍵可持續輸入"
-            textSize = 12f; setTextColor(MUTED)
-        })
-        val top = horizontal()
-        top.addView(remoteKey("返回", 4), weighted())
-        top.addView(remoteKey("首頁", 3), weighted())
-        top.addView(remoteKey("選單", 82), weighted())
-        top.addView(remoteKey("電源", 26), weighted())
-        c.addView(top)
-
-        val pad = LinearLayout(this).apply {
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            background = rounded(PANEL, 28)
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setPadding(0, dp(8), 0, dp(4))
         }
-        pad.addView(remoteKey("▲", 19, true), LinearLayout.LayoutParams(dp(86), dp(58)).apply { bottomMargin = dp(6) })
-        val middle = horizontal().apply { gravity = Gravity.CENTER }
-        middle.addView(remoteKey("◀", 21, true), LinearLayout.LayoutParams(dp(86), dp(66)).apply { rightMargin = dp(6) })
-        middle.addView(remoteKey("OK", 23, true, true), LinearLayout.LayoutParams(dp(92), dp(66)))
-        middle.addView(remoteKey("▶", 22, true), LinearLayout.LayoutParams(dp(86), dp(66)).apply { leftMargin = dp(6) })
-        pad.addView(middle)
-        pad.addView(remoteKey("▼", 20, true), LinearLayout.LayoutParams(dp(86), dp(58)).apply { topMargin = dp(6) })
-        c.addView(pad, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
 
-        c.addView(heading("音量與播放"))
-        val volume = horizontal()
-        volume.addView(remoteKey("音量－", 25), weighted())
-        volume.addView(remoteKey("靜音", 164), weighted())
-        volume.addView(remoteKey("音量＋", 24), weighted())
-        c.addView(volume)
-        val playback = horizontal()
-        playback.addView(remoteKey("上一個", 88), weighted())
-        playback.addView(remoteKey("倒轉", 89), weighted())
-        playback.addView(remoteKey("播放／暫停", 85), weighted())
-        playback.addView(remoteKey("快轉", 90), weighted())
-        playback.addView(remoteKey("下一個", 87), weighted())
-        c.addView(playback)
-        return page(c)
+        // Header: settings, selected TV/status, power
+        val header = horizontal().apply { gravity = Gravity.CENTER_VERTICAL }
+        val settings = remoteCircle("⚙", 0, 58).apply { setOnClickListener { showPage(PAGE_SETTINGS) } }
+        val device = TextView(this).apply {
+            text = "●  1  ▾"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(WHITE)
+            isFocusable = true
+            isClickable = true
+            setOnClickListener { showPage(PAGE_DEVICES) }
+        }
+        val power = remoteCircle("⏻", 26, 58, true)
+        header.addView(settings, LinearLayout.LayoutParams(0, dp(62), 1f))
+        header.addView(device, LinearLayout.LayoutParams(0, dp(62), 1.5f))
+        header.addView(power, LinearLayout.LayoutParams(0, dp(62), 1f))
+        root.addView(header)
+
+        // Media controls stay in the same place on both remote pages.
+        val media = horizontal().apply { gravity = Gravity.CENTER }
+        listOf("◀|", "◀◀", "▶Ⅱ", "▶▶", "|▶").forEachIndexed { i, label ->
+            val code = listOf(88, 89, 85, 90, 87)[i]
+            media.addView(remoteCircle(label, code, 62), LinearLayout.LayoutParams(0, dp(72), 1f).apply {
+                leftMargin = dp(3); rightMargin = dp(3)
+            })
+        }
+        root.addView(media, LinearLayout.LayoutParams(-1, dp(82)).apply { topMargin = dp(8) })
+
+        val center = FrameLayout(this)
+        if (remoteSubpage == 0) {
+            val outer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(0xFF9A4CCB.toInt(), 0xFF477ED8.toInt())
+                ).apply { cornerRadius = dp(500).toFloat() }
+                setPadding(dp(3), dp(3), dp(3), dp(3))
+            }
+            val inner = FrameLayout(this).apply {
+                background = GradientDrawable().apply {
+                    setColor(0xFF292929.toInt())
+                    cornerRadius = dp(500).toFloat()
+                }
+            }
+            val arrowUp = remoteArrow("⌃", 19)
+            val arrowDown = remoteArrow("⌄", 20)
+            val arrowLeft = remoteArrow("‹", 21)
+            val arrowRight = remoteArrow("›", 22)
+            val ok = TextView(this).apply {
+                text = ""
+                gravity = Gravity.CENTER
+                isFocusable = true
+                isClickable = true
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(0xFF9650C5.toInt(), 0xFF4385D9.toInt())
+                ).apply { shape = GradientDrawable.OVAL }
+                setOnClickListener { sendKey(23) }
+            }
+            val okInner = View(this).apply {
+                background = GradientDrawable().apply {
+                    setColor(0xFF292929.toInt())
+                    shape = GradientDrawable.OVAL
+                }
+            }
+            val okWrap = FrameLayout(this).apply {
+                addView(okInner, FrameLayout.LayoutParams(-1, -1).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                })
+                addView(ok, FrameLayout.LayoutParams(-1, -1))
+                setOnClickListener { sendKey(23) }
+            }
+            inner.addView(arrowUp, FrameLayout.LayoutParams(dp(76), dp(64), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(34) })
+            inner.addView(arrowDown, FrameLayout.LayoutParams(dp(76), dp(64), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(34) })
+            inner.addView(arrowLeft, FrameLayout.LayoutParams(dp(76), dp(76), Gravity.CENTER_VERTICAL or Gravity.LEFT).apply { leftMargin = dp(28) })
+            inner.addView(arrowRight, FrameLayout.LayoutParams(dp(76), dp(76), Gravity.CENTER_VERTICAL or Gravity.RIGHT).apply { rightMargin = dp(28) })
+            inner.addView(okWrap, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER))
+            outer.addView(inner, LinearLayout.LayoutParams(-1, -1))
+            center.addView(outer, FrameLayout.LayoutParams(-1, -1))
+        } else {
+            val grid = android.widget.GridLayout(this).apply {
+                columnCount = 3
+                rowCount = 4
+                alignmentMode = android.widget.GridLayout.ALIGN_BOUNDS
+                useDefaultMargins = false
+                setPadding(dp(28), dp(8), dp(28), dp(8))
+            }
+            val labels = listOf("1","2","3","4","5","6","7","8","9","TV","0","Menu")
+            val codes = listOf(8,9,10,11,12,13,14,15,16,170,7,82)
+            labels.forEachIndexed { i, label ->
+                val key = remoteNumberKey(label, codes[i])
+                val lp = android.widget.GridLayout.LayoutParams().apply {
+                    width = 0
+                    height = 0
+                    columnSpec = android.widget.GridLayout.spec(i % 3, 1f)
+                    rowSpec = android.widget.GridLayout.spec(i / 3, 1f)
+                    setMargins(dp(6), dp(6), dp(6), dp(6))
+                }
+                grid.addView(key, lp)
+            }
+            center.addView(grid, FrameLayout.LayoutParams(-1, -1))
+        }
+        root.addView(center, LinearLayout.LayoutParams(-1, 0, 1f).apply {
+            topMargin = dp(14); bottomMargin = dp(8)
+        })
+
+        val dots = horizontal().apply { gravity = Gravity.CENTER }
+        repeat(2) { index ->
+            val dot = View(this).apply {
+                background = GradientDrawable().apply {
+                    setColor(if (remoteSubpage == index) WHITE else 0xFF555555.toInt())
+                    shape = GradientDrawable.OVAL
+                }
+                isClickable = true
+                setOnClickListener { remoteSubpage = index; showPage(PAGE_REMOTE) }
+            }
+            dots.addView(dot, LinearLayout.LayoutParams(dp(9), dp(9)).apply {
+                leftMargin = dp(7); rightMargin = dp(7); topMargin = dp(2); bottomMargin = dp(8)
+            })
+        }
+        root.addView(dots)
+
+        // Fixed bottom controls: volume/channel rails and six quick actions.
+        val bottom = horizontal().apply { gravity = Gravity.CENTER_VERTICAL }
+        val volumeRail = remoteRail("+", "VOL", "−", 24, 25)
+        bottom.addView(volumeRail, LinearLayout.LayoutParams(dp(76), dp(250)))
+        val quick = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        val row1 = horizontal().apply { gravity = Gravity.CENTER }
+        row1.addView(remoteCircle("▦", 0, 62).apply { setOnClickListener { showPage(PAGE_KEYBOARD) } }, weightedCircle())
+        row1.addView(remoteCircle("⌂", 3, 62), weightedCircle())
+        row1.addView(remoteCircle(if (remoteSubpage == 0) "⠿" else "✥", 0, 62).apply {
+            setOnClickListener { remoteSubpage = 1 - remoteSubpage; showPage(PAGE_REMOTE) }
+        }, weightedCircle())
+        val row2 = horizontal().apply { gravity = Gravity.CENTER }
+        row2.addView(remoteCircle("◁))", 164, 62), weightedCircle())
+        row2.addView(remoteCircle("🎙", 219, 62), weightedCircle())
+        row2.addView(remoteCircle("↶", 4, 62), weightedCircle())
+        quick.addView(row1)
+        quick.addView(row2)
+        bottom.addView(quick, LinearLayout.LayoutParams(0, dp(250), 1f))
+        bottom.addView(remoteRail("⌃", "CH", "⌄", 166, 167), LinearLayout.LayoutParams(dp(76), dp(250)))
+        root.addView(bottom)
+        return root
     }
+
+    private fun weightedCircle() = LinearLayout.LayoutParams(0, dp(78), 1f).apply {
+        leftMargin = dp(3); rightMargin = dp(3); topMargin = dp(3); bottomMargin = dp(3)
+    }
+
+    private fun remoteCircle(label: String, keyCode: Int, size: Int, red: Boolean = false): TextView {
+        val v = TextView(this).apply {
+            text = label
+            textSize = if (label.length > 2) 15f else 25f
+            gravity = Gravity.CENTER
+            setTextColor(if (red) 0xFFFF514B.toInt() else WHITE)
+            isFocusable = true
+            isClickable = true
+            background = GradientDrawable().apply {
+                setColor(0xFF333333.toInt())
+                shape = GradientDrawable.OVAL
+            }
+            if (keyCode != 0) setOnTouchListener { view, event ->
+                val client = remoteClient
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        if (client == null) toast("請先連線電視")
+                        else {
+                            view.isPressed = true
+                            runCatching { client.startLongPress(keyCode) }.onFailure { showError("按鍵傳送失敗", it) }
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        view.isPressed = false
+                        if (client != null) runCatching { client.endLongPress(keyCode) }.onFailure { showError("按鍵傳送失敗", it) }
+                        true
+                    }
+                    else -> true
+                }
+            }
+        }
+        return v
+    }
+
+    private fun remoteArrow(label: String, keyCode: Int): TextView =
+        remoteCircle(label, keyCode, 64).apply {
+            textSize = 42f
+            background = null
+        }
+
+    private fun remoteNumberKey(label: String, keyCode: Int): View =
+        TextView(this).apply {
+            text = label
+            textSize = 25f
+            gravity = Gravity.CENTER
+            setTextColor(WHITE)
+            isFocusable = true
+            isClickable = true
+            background = GradientDrawable().apply {
+                setColor(0xFF333333.toInt())
+                cornerRadius = dp(18).toFloat()
+            }
+            setOnClickListener { sendKey(keyCode) }
+        }
+
+    private fun remoteRail(top: String, title: String, bottom: String, topKey: Int, bottomKey: Int): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(0xFF333333.toInt())
+                cornerRadius = dp(40).toFloat()
+            }
+            addView(remoteCircle(top, topKey, 44).apply { background = null; textSize = 28f }, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(TextView(this@MainActivity).apply {
+                text = title
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(WHITE)
+            }, LinearLayout.LayoutParams(-1, dp(38)))
+            addView(remoteCircle(bottom, bottomKey, 44).apply { background = null; textSize = 28f }, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
 
     private fun buildTouchPage(): View {
         val c = column()
