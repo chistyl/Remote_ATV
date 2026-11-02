@@ -1,0 +1,82 @@
+name: Rebuild Remote ATV 5.0.5 Traditional Chinese
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/rebuild-remote-atv-505-zh-tw.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify baseline APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
+          test -s "$APK" || { echo "::error::Missing baseline APK: $APK"; exit 1; }
+          sha256sum "$APK"
+
+      - name: Install Java and Android build tools
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Apktool
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar -o apktool.jar
+          java -jar apktool.jar --version
+
+      - name: Decode, replace Chinese locale resources, and rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work output
+          java -jar apktool.jar d -f "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" -o work/decoded
+          test -s work/decoded/res/values-zh-rTW/strings.xml
+          test -s work/decoded/res/values-zh-rMO/strings.xml
+          cp work/decoded/res/values-zh-rTW/strings.xml work/decoded/res/values-zh-rCN/strings.xml
+          cp work/decoded/res/values-zh-rMO/strings.xml work/decoded/res/values-zh/strings.xml
+          java -jar apktool.jar b work/decoded -o work/Remote_ATV_5.0.5_zh_TW_unsigned.apk
+          test -s work/Remote_ATV_5.0.5_zh_TW_unsigned.apk
+          sha256sum work/Remote_ATV_5.0.5_zh_TW_unsigned.apk
+
+      - name: Install Android Build Tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --install "build-tools;35.0.0"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+      - name: Align and sign rebuilt APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIGN_PASS="$(openssl rand -hex 24)"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 work/Remote_ATV_5.0.5_zh_TW_unsigned.apk work/aligned.apk
+          keytool -genkeypair -keystore work/remote-atv-505-zh-tw.jks -storepass "$SIGN_PASS" -keypass "$SIGN_PASS" -alias remoteatv -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV 5.0.5 Traditional Chinese"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks work/remote-atv-505-zh-tw.jks --ks-key-alias remoteatv --ks-pass "pass:$SIGN_PASS" --key-pass "pass:$SIGN_PASS" --out output/Remote_ATV_5.0.5_繁體中文修正版.apk work/aligned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose output/Remote_ATV_5.0.5_繁體中文修正版.apk
+          unzip -t output/Remote_ATV_5.0.5_繁體中文修正版.apk
+          sha256sum output/Remote_ATV_5.0.5_繁體中文修正版.apk
+
+      - name: Upload rebuilt APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-Traditional-Chinese-APK
+          path: output/Remote_ATV_5.0.5_繁體中文修正版.apk
+          if-no-files-found: error
+          retention-days: 14
