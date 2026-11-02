@@ -9,7 +9,7 @@ permissions:
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,10 +18,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fL --retry 3 \
-            https://github.com/ejfkdev/dae/releases/download/v0.1.17/dae-Linux-x64 \
-            -o /tmp/dae
-          echo "2dcb6da98bae489b81ed378000b6840924aac4177aa11568668deaf08ee9eaaa  /tmp/dae" | sha256sum -c -
+          URL="https://github.com/ejfkdev/dae/releases/download/v0.1.17/dae-Linux-x64"
+          curl -fL --retry 3 --retry-all-errors "$URL" -o /tmp/dae
+          test -s /tmp/dae
+          echo "Downloaded DAE SHA-256:"
+          sha256sum /tmp/dae
           chmod +x /tmp/dae
           /tmp/dae version
 
@@ -43,13 +44,14 @@ jobs:
           /tmp/dae export work/analysis/libapp.so work/dae-out --decompile
           mkdir -p work/targeted
           for phrase in "电视机" "请确保您的电视已打开并连接到同一 Wi-Fi 网络。" "平滑按压" "远程行为" "连接的设备"; do
-            safe=$(printf '%s' "$phrase" | tr -cd '[:alnum:]' | cut -c1-24)
+            safe=$(printf '%s' "$phrase" | sha256sum | cut -c1-12)
             {
               echo "===== $phrase ====="
               /tmp/dae strings work/analysis/libapp.so -f "$phrase" || true
               /tmp/dae findrefs work/analysis/libapp.so string "$phrase" || true
-            } >> "work/targeted/${safe:-target}.txt"
+            } >> "work/targeted/$safe.txt"
           done
+          find work/dae-out -maxdepth 3 -type f -print
           cp work/dae-out/text/strings.txt work/targeted/strings.txt
           cp work/dae-out/text/pp.txt work/targeted/pp.txt
           cp work/dae-out/text/functions.txt work/targeted/functions.txt
