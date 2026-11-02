@@ -5,7 +5,7 @@
 ## 開發基準
 - GitHub 為唯一主要版本管理與交付來源。
 - 開發分支：`dev/tvremote-rebuild-0.2.0`
-- 目前版本：0.5.1-dev
+- 目前版本：0.6.0-dev
 - Android 原生 Kotlin 專案。
 - 依公開 Android TV Remote 協定重新實作，不直接複製原 App 的品牌素材或專有程式碼。
 
@@ -22,6 +22,12 @@
 - TLS 6466 遙控連線與 RemoteConfigure / RemoteSetActive / RemoteStart 初始化
 - 遙控訊息 framing、Ping 回應
 - 方向鍵、確認、返回、首頁、音量、靜音、播放暫停與電源按鍵 UI
+- 觸控板手勢：點按確認、上下左右滑動轉換成 DPAD 方向鍵（協定層不支援真實滑鼠座標，因此不是空中滑鼠）
+- 方向鍵長按：按下送出 START_LONG，放開送出 END_LONG
+
+## 0.6.0-dev 新增
+- 新增觸控板手勢操作與方向鍵長按事件。
+- 目前文字輸入尚未完成，需接續實作並驗證 IME 欄位狀態同步。
 
 ## 0.5.1-dev 修正
 - 配對流程會使用畫面指定的配對連接埠。
