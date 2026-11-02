@@ -26,6 +26,8 @@ import com.chistyl.tvremote.security.TvTlsIdentity
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
+    private lateinit var topHeader: LinearLayout
+    private lateinit var navBar: LinearLayout
     private lateinit var devices: LinearLayout
     private lateinit var ipInput: EditText
     private lateinit var portInput: EditText
@@ -50,11 +52,11 @@ class MainActivity : Activity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(10))
+            setPadding(0, 0, 0, 0)
             setBackgroundColor(BG)
         }
 
-        val header = LinearLayout(this).apply {
+        topHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
@@ -66,7 +68,7 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(0, dp(48), 1f))
         header.addView(chipButton("裝置", false) { showPage(PAGE_DEVICES) }, LinearLayout.LayoutParams(dp(76), dp(42)))
         header.addView(chipButton("設定", false) { showPage(PAGE_SETTINGS) }, LinearLayout.LayoutParams(dp(76), dp(42)).apply { leftMargin = dp(8) })
-        root.addView(header)
+        root.addView(topHeader)
 
         status = TextView(this).apply {
             text = "尚未連線電視"
@@ -76,7 +78,7 @@ class MainActivity : Activity() {
         }
         root.addView(status)
 
-        val nav = LinearLayout(this).apply {
+        navBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             background = rounded(PANEL, 18)
@@ -87,10 +89,10 @@ class MainActivity : Activity() {
                 leftMargin = dp(2); rightMargin = dp(2)
             })
         }
-        root.addView(nav)
+        root.addView(navBar)
 
         pageHost = FrameLayout(this)
-        root.addView(pageHost, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        root.addView(pageHost, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         showPage(PAGE_REMOTE)
     }
@@ -98,6 +100,14 @@ class MainActivity : Activity() {
     private fun showPage(page: Int) {
         activePage = page
         if (!::pageHost.isInitialized) return
+        val isRemote = page == PAGE_REMOTE
+        topHeader.visibility = if (isRemote) View.GONE else View.VISIBLE
+        status.visibility = if (isRemote) View.GONE else View.VISIBLE
+        navBar.visibility = if (isRemote) View.GONE else View.VISIBLE
+        topHeader.setPadding(dp(18), dp(12), dp(18), 0)
+        status.setPadding(dp(18), dp(3), dp(18), dp(12))
+        navBar.setPadding(dp(4), dp(4), dp(4), dp(4))
+        pageHost.setPadding(if (isRemote) dp(12) else dp(18), if (isRemote) dp(8) else dp(4), if (isRemote) dp(12) else dp(18), if (isRemote) dp(8) else 0)
         pageHost.removeAllViews()
         val view = when (page) {
             PAGE_DEVICES -> buildDevicePage()
@@ -161,12 +171,12 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, dp(4))
+            setPadding(dp(10), dp(10), dp(10), dp(6))
         }
 
         // Header: settings, selected TV/status, power
         val header = horizontal().apply { gravity = Gravity.CENTER_VERTICAL }
-        val settings = remoteCircle("⚙", 0, 58).apply { setOnClickListener { showPage(PAGE_SETTINGS) } }
+        val settings = remoteCircle("⚙", 0, 58).apply { background = null; setOnClickListener { showPage(PAGE_SETTINGS) } }
         val device = TextView(this).apply {
             text = "●  1  ▾"
             textSize = 20f
@@ -176,7 +186,7 @@ class MainActivity : Activity() {
             isClickable = true
             setOnClickListener { showPage(PAGE_DEVICES) }
         }
-        val power = remoteCircle("⏻", 26, 58, true)
+        val power = remoteCircle("⏻", 26, 58, true).apply { background = null; textSize = 34f }
         header.addView(settings, LinearLayout.LayoutParams(0, dp(62), 1f))
         header.addView(device, LinearLayout.LayoutParams(0, dp(62), 1.5f))
         header.addView(power, LinearLayout.LayoutParams(0, dp(62), 1f))
@@ -190,7 +200,7 @@ class MainActivity : Activity() {
                 leftMargin = dp(3); rightMargin = dp(3)
             })
         }
-        root.addView(media, LinearLayout.LayoutParams(-1, dp(82)).apply { topMargin = dp(8) })
+        root.addView(media, LinearLayout.LayoutParams(-1, dp(76)).apply { topMargin = dp(4) })
 
         val center = FrameLayout(this)
         if (remoteSubpage == 0) {
@@ -290,7 +300,7 @@ class MainActivity : Activity() {
         // Fixed bottom controls: volume/channel rails and six quick actions.
         val bottom = horizontal().apply { gravity = Gravity.CENTER_VERTICAL }
         val volumeRail = remoteRail("+", "VOL", "−", 24, 25)
-        bottom.addView(volumeRail, LinearLayout.LayoutParams(dp(76), dp(250)))
+        bottom.addView(volumeRail, LinearLayout.LayoutParams(dp(70), dp(230)))
         val quick = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -307,8 +317,8 @@ class MainActivity : Activity() {
         row2.addView(remoteCircle("↶", 4, 62), weightedCircle())
         quick.addView(row1)
         quick.addView(row2)
-        bottom.addView(quick, LinearLayout.LayoutParams(0, dp(250), 1f))
-        bottom.addView(remoteRail("⌃", "CH", "⌄", 166, 167), LinearLayout.LayoutParams(dp(76), dp(250)))
+        bottom.addView(quick, LinearLayout.LayoutParams(0, dp(230), 1f))
+        bottom.addView(remoteRail("⌃", "CH", "⌄", 166, 167), LinearLayout.LayoutParams(dp(70), dp(230)))
         root.addView(bottom)
         return root
     }
@@ -320,13 +330,13 @@ class MainActivity : Activity() {
     private fun remoteCircle(label: String, keyCode: Int, size: Int, red: Boolean = false): TextView {
         val v = TextView(this).apply {
             text = label
-            textSize = if (label.length > 2) 15f else 25f
+            textSize = if (label.length > 2) 14f else 25f
             gravity = Gravity.CENTER
             setTextColor(if (red) 0xFFFF514B.toInt() else WHITE)
             isFocusable = true
             isClickable = true
             background = GradientDrawable().apply {
-                setColor(0xFF333333.toInt())
+                setColor(0xFF303033.toInt())
                 shape = GradientDrawable.OVAL
             }
             if (keyCode != 0) setOnTouchListener { view, event ->
