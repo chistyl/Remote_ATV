@@ -27,9 +27,14 @@ jobs:
           sha256sum "$APK"
 
       - name: Install Android Build Tools
-        uses: android-actions/setup-android@v3
-      - name: Install build-tools
-        run: sdkmanager "build-tools;35.0.0"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" || test -x "$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" --install "build-tools;35.0.0"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
       - name: Remove old signatures and align APK
         shell: bash
