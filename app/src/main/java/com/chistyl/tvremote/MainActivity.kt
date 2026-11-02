@@ -66,8 +66,8 @@ class MainActivity : Activity() {
             setTextColor(WHITE)
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         }, LinearLayout.LayoutParams(0, dp(48), 1f))
-        header.addView(chipButton("裝置", false) { showPage(PAGE_DEVICES) }, LinearLayout.LayoutParams(dp(76), dp(42)))
-        header.addView(chipButton("設定", false) { showPage(PAGE_SETTINGS) }, LinearLayout.LayoutParams(dp(76), dp(42)).apply { leftMargin = dp(8) })
+        topHeader.addView(chipButton("裝置", false) { showPage(PAGE_DEVICES) }, LinearLayout.LayoutParams(dp(76), dp(42)))
+        topHeader.addView(chipButton("設定", false) { showPage(PAGE_SETTINGS) }, LinearLayout.LayoutParams(dp(76), dp(42)).apply { leftMargin = dp(8) })
         root.addView(topHeader)
 
         status = TextView(this).apply {
@@ -187,9 +187,9 @@ class MainActivity : Activity() {
             setOnClickListener { showPage(PAGE_DEVICES) }
         }
         val power = remoteCircle("⏻", 26, 58, true).apply { background = null; textSize = 34f }
-        header.addView(settings, LinearLayout.LayoutParams(0, dp(62), 1f))
-        header.addView(device, LinearLayout.LayoutParams(0, dp(62), 1.5f))
-        header.addView(power, LinearLayout.LayoutParams(0, dp(62), 1f))
+        topHeader.addView(settings, LinearLayout.LayoutParams(0, dp(62), 1f))
+        topHeader.addView(device, LinearLayout.LayoutParams(0, dp(62), 1.5f))
+        topHeader.addView(power, LinearLayout.LayoutParams(0, dp(62), 1f))
         root.addView(header)
 
         // Media controls stay in the same place on both remote pages.
