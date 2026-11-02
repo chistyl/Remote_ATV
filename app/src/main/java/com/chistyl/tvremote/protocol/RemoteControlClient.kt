@@ -41,6 +41,7 @@ class RemoteControlClient(
 
     fun sendKey(keyCode: Int, direction: Int = 3) {
         check(started && !closed.get()) { "TV remote is not connected" }
+        check((negotiatedFeatures and FEATURE_KEY) != 0) { "This TV does not advertise key injection support" }
         val key = RemoteKeyInject.newBuilder()
             .setKeyCodeValue(keyCode)
             .setDirectionValue(direction)
@@ -117,5 +118,6 @@ class RemoteControlClient(
     companion object {
         // PING | KEY | IME | POWER | VOLUME | APP_LINK, matching androidtvremote2.
         const val REQUESTED_FEATURES = 615
+        private const val FEATURE_KEY = 2
     }
 }
