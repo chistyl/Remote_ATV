@@ -3,6 +3,9 @@ package com.chistyl.tvremote.protocol
 import com.chistyl.tvremote.proto.RemoteDeviceInfo
 import com.chistyl.tvremote.proto.RemoteDirection
 import com.chistyl.tvremote.proto.RemoteKeyInject
+import com.chistyl.tvremote.proto.RemoteEditInfo
+import com.chistyl.tvremote.proto.RemoteImeBatchEdit
+import com.chistyl.tvremote.proto.RemoteImeObject
 import com.chistyl.tvremote.proto.RemoteMessage
 import com.chistyl.tvremote.security.TvTlsIdentity
 import java.io.Closeable
@@ -24,6 +27,13 @@ class RemoteControlClient(
     private val writeLock = Any()
     @Volatile private var started = false
     @Volatile private var negotiatedFeatures = 0
+    @Volatile private var imeCounter = 0
+    @Volatile private var imeFieldCounter = 0
+    @Volatile private var imeReady = false
+
+    val canSendText: Boolean
+        get() = started && !closed.get() &&
+            (negotiatedFeatures and FEATURE_IME) != 0 && imeReady
 
     fun connect(timeoutSeconds: Long = 12): Boolean {
         check(socket == null) { "Remote client is already connected" }
@@ -52,6 +62,29 @@ class RemoteControlClient(
     fun startLongPress(keyCode: Int) = sendKey(keyCode, DIRECTION_START_LONG)
 
     fun endLongPress(keyCode: Int) = sendKey(keyCode, DIRECTION_END_LONG)
+
+    fun sendText(text: String) {
+        require(text.isNotEmpty()) { "Text cannot be empty" }
+        check(started && !closed.get()) { "TV remote is not connected" }
+        check((negotiatedFeatures and FEATURE_IME) != 0) { "This TV does not advertise IME text input support" }
+        check(imeReady) { "TV has not sent IME field counters yet; focus a text field on the TV first" }
+        val lastPosition = text.codePointCount(0, text.length) - 1
+        val textObject = RemoteImeObject.newBuilder()
+            .setStart(lastPosition)
+            .setEnd(lastPosition)
+            .setValue(text)
+            .build()
+        val edit = RemoteEditInfo.newBuilder()
+            .setInsert(1)
+            .setTextFieldStatus(textObject)
+            .build()
+        val batch = RemoteImeBatchEdit.newBuilder()
+            .setImeCounter(imeCounter)
+            .setFieldCounter(imeFieldCounter)
+            .addEditInfo(edit)
+            .build()
+        send(RemoteMessage.newBuilder().setRemoteImeBatchEdit(batch).build())
+    }
 
     private fun readLoop(activeSocket: SSLSocket) {
         try {
@@ -85,6 +118,12 @@ class RemoteControlClient(
                             onStatus("電視未啟動遙控服務")
                             ready.countDown()
                         }
+                    }
+                    message.hasRemoteImeBatchEdit() -> {
+                        imeCounter = message.remoteImeBatchEdit.imeCounter
+                        imeFieldCounter = message.remoteImeBatchEdit.fieldCounter
+                        imeReady = true
+                        onStatus("電視文字輸入欄位已就緒")
                     }
                     message.hasRemotePingRequest() -> send(
                         RemoteMessage.newBuilder().setRemotePingResponse(
@@ -126,5 +165,6 @@ class RemoteControlClient(
         const val DIRECTION_END_LONG = 2
         const val DIRECTION_SHORT = 3
         private const val FEATURE_KEY = 2
+        private const val FEATURE_IME = 4
     }
 }
