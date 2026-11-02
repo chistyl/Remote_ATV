@@ -12,7 +12,11 @@ import javax.net.ssl.SSLSocket
  *
  * Run all methods on a background thread; do not call from the Android main thread.
  */
-class TvPairingSession(private val identity: TvTlsIdentity, private val host: String) : Closeable {
+class TvPairingSession(
+    private val identity: TvTlsIdentity,
+    private val host: String,
+    private val port: Int = TvTlsIdentity.PAIRING_PORT
+) : Closeable {
     private var socket: SSLSocket? = null
     private var client: PairingClient? = null
     private var serverCertificate: X509Certificate? = null
@@ -20,7 +24,7 @@ class TvPairingSession(private val identity: TvTlsIdentity, private val host: St
     fun startPairing(): String {
         check(socket == null) { "Pairing session already started" }
         identity.clientCertificate()
-        val opened = identity.createPairingSocket(host)
+        val opened = identity.createPairingSocket(host, port)
         socket = opened
         val pairing = PairingClient(opened)
         client = pairing
