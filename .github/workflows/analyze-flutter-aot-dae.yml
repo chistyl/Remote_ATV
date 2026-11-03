@@ -70,7 +70,14 @@ jobs:
           /tmp/dae info "$BIN" > work/diagnostics/info-auto.txt 2>&1
           echo "info exit=$?" >> work/diagnostics/exit-codes.txt
           /tmp/dae export "$BIN" work/dae-out > work/diagnostics/export-auto.txt 2>&1
-          echo "export exit=$?" >> work/diagnostics/exit-codes.txt
+          echo "export auto exit=$?" >> work/diagnostics/exit-codes.txt
+          for PROFILE in dart-2.13.4-w32-compressed.json dart-2.13.4-w64-no-compressed.json; do
+            LABEL="${PROFILE%.json}"
+            /tmp/dae info "$BIN" --sdk-profile "work/dae-source/profiles/sdk/$PROFILE" > "work/diagnostics/info-$LABEL.txt" 2>&1
+            echo "info $LABEL exit=$?" >> work/diagnostics/exit-codes.txt
+            /tmp/dae export "$BIN" "work/dae-out-$LABEL" --sdk-profile "work/dae-source/profiles/sdk/$PROFILE" > "work/diagnostics/export-$LABEL.txt" 2>&1
+            echo "export $LABEL exit=$?" >> work/diagnostics/exit-codes.txt
+          done
           /tmp/dae strings "$BIN" -f "电视" > work/diagnostics/strings-simplified-chinese.txt 2>&1
           echo "strings Chinese exit=$?" >> work/diagnostics/exit-codes.txt
           /tmp/dae strings "$BIN" -f "連線" > work/diagnostics/strings-traditional-chinese.txt 2>&1
