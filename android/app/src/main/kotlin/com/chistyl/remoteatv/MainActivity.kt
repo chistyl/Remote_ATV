@@ -197,7 +197,8 @@ class MainActivity : FlutterActivity() {
                             "quickAccess" to prefs.getString("quick_access", "none")))
                     }
                     "setUiSettings" -> {
-                        val prefs = getSharedPreferences("remote_atv", Context.MODE_PRIVATE)                        val edit = prefs.edit()
+                        val prefs = getSharedPreferences("remote_atv", Context.MODE_PRIVATE)
+                        val edit = prefs.edit()
                         call.argument<Boolean>("haptic")?.let { edit.putBoolean("haptic_feedback", it) }
                         call.argument<Boolean>("naturalHold")?.let { edit.putBoolean("natural_hold", it) }
                         call.argument<String>("remoteLayout")?.let { edit.putString("remote_layout", if (it == "swipe") "swipe" else "dpad") }
@@ -396,7 +397,8 @@ class MainActivity : FlutterActivity() {
                 digest.update(bigIntegerBytes(serverRsa.modulus))
                 digest.update(byteArrayOf(0))
                 digest.update(bigIntegerBytes(serverRsa.publicExponent))
-                digest.update(hexToBytes(pin.substring(2)))                val secret = digest.digest()
+                digest.update(hexToBytes(pin.substring(2)))
+                val secret = digest.digest()
                 if ((secret[0].toInt() and 0xff) != pin.substring(0, 2).toInt(16)) {
                     throw SecurityException("配對碼驗證失敗，請確認電視上的 6 位數配對碼")
                 }
