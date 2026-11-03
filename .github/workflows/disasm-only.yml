@@ -57,7 +57,7 @@ jobs:
               lines.append(f"0x{i.address:08x}: {i.mnemonic:8s} {i.op_str}")
           Path("work/diag/menu-builder-range.txt").write_text("\\n".join(lines),encoding="utf-8")
           # Dump row-construction helper functions called by the settings page.
-          helper_ranges=[(0x444200,0x444900),(0x4449a8,0x444fe4),(0x443fa4,0x444134),(0x440dec,0x44140c)]
+          helper_ranges=[(0x444200,0x444900),(0x4449a8,0x444fe4),(0x443fa4,0x444134),(0x440dec,0x44140c),(0x44c800,0x44d600),(0x453700,0x453900),(0x25d400,0x25d600),(0x265200,0x265400),(0x282200,0x282400),(0x3a0300,0x3a0500)]
           with path.open("rb") as hf:
               elf3=ELFFile(hf)
               hsegs=[s for s in elf3.iter_segments() if s['p_type']=='PT_LOAD' and (int(s['p_flags'])&1)]
