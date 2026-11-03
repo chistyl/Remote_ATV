@@ -1,5 +1,7 @@
 name: Analyze Remote ATV 5.0.5 Flutter AOT with DAE
 
+# Re-run AOT analysis to verify update-dialog patch target before changing defaults or menu items.
+
 on:
   workflow_dispatch:
   push:
