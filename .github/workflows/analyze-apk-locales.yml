@@ -36,13 +36,15 @@ jobs:
           set -euo pipefail
           APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
           test -s "$APK"
-          java -jar apktool.jar d -f --no-src "$APK" -o decoded
+          java -jar apktool.jar d -f "$APK" -o decoded
           find decoded/res -type f -path '*/values*/*' -name '*.xml' -print0 | xargs -0 grep -nH -E '[一-龥]' > chinese-resource-lines.txt || true
           grep -nH -E '[一-龥]' decoded/res/values*/strings.xml >> chinese-resource-lines.txt 2>/dev/null || true
           echo "Decoded resource files: $(find decoded/res -type f | wc -l)"
           echo "Chinese resource lines: $(wc -l < chinese-resource-lines.txt)"
           grep -RniE 'update|upgrade|version|force_update|later_update|更新|版本|稍後|立即' decoded/res decoded/AndroidManifest.xml > update-resource-scan.txt || true
           echo "Update-related Android resource matches: $(wc -l < update-resource-scan.txt)"
+          grep -RniE 'upgrader|force_update|optional_update|update_now|later_update|updateDialog|appUpdate|versionCheck|UPDATE NOW|LATER|check.?for.?updates|in_app_update|play.core.appupdate' decoded/smali* > update-smali-scan.txt || true
+          echo "Update-related DEX matches: $(wc -l < update-smali-scan.txt)"
 
       - name: Package analysis output
         uses: actions/upload-artifact@v4
@@ -53,6 +55,8 @@ jobs:
             decoded/apktool.yml
             chinese-resource-lines.txt
             update-resource-scan.txt
+            update-smali-scan.txt
+            decoded/smali*/
             decoded/AndroidManifest.xml
           if-no-files-found: error
           retention-days: 14
