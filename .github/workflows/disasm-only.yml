@@ -119,7 +119,7 @@ jobs:
           # Robust string-based scan of settings callbacks and UI labels.
           direct_targets={0x970:"share.svg",0x978:"share callback",0x980:"review.svg",0x988:"review callback",0x990:"feedback.svg",0x998:"feedback callback",0x9a0:"subpage arrow",0x9a8:"subpage callback",0x9b0:"premium.svg",0x9b8:"premium callback",0x9c0:"menu callback"}
           direct_refs=[]
-          semantic_targets={0x38:{0xc58:"Feedback label"},0x39:{0x8e0:"Activate premium label",0x9c8:"Rate and Review label",0x9d0:"Share with friends label"},0x12:{0xb98:"feedback_clicked",0xba8:"rate_and_review_clicked",0xbf0:"share_with_friends_clicked"}}
+          semantic_targets={0x38:{0xc58:"Feedback label"},0x39:{0x8e0:"Activate premium label",0x9c8:"Rate and Review label",0x9d0:"Share with friends label"},0x12:{0x970:"share.svg",0x978:"share callback",0x980:"review.svg",0x988:"review callback",0x990:"feedback.svg",0x998:"feedback callback",0x9a0:"subpage arrow",0x9a8:"subpage callback",0x9b0:"premium.svg",0x9b8:"premium callback",0xb98:"feedback_clicked",0xba8:"rate_and_review_clicked",0xbf0:"share_with_friends_clicked"}}
           semantic_refs=[]
           with path.open("rb") as scan_f:
               elf5=ELFFile(scan_f)
