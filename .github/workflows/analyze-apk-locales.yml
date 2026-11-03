@@ -41,6 +41,8 @@ jobs:
           grep -nH -E '[一-龥]' decoded/res/values*/strings.xml >> chinese-resource-lines.txt 2>/dev/null || true
           echo "Decoded resource files: $(find decoded/res -type f | wc -l)"
           echo "Chinese resource lines: $(wc -l < chinese-resource-lines.txt)"
+          grep -RniE 'update|upgrade|version|force_update|later_update|更新|版本|稍後|立即' decoded/res decoded/AndroidManifest.xml > update-resource-scan.txt || true
+          echo "Update-related Android resource matches: $(wc -l < update-resource-scan.txt)"
 
       - name: Package analysis output
         uses: actions/upload-artifact@v4
@@ -50,5 +52,7 @@ jobs:
             decoded/res/
             decoded/apktool.yml
             chinese-resource-lines.txt
+            update-resource-scan.txt
+            decoded/AndroidManifest.xml
           if-no-files-found: error
           retention-days: 14
