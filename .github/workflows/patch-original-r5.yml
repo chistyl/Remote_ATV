@@ -20,7 +20,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import zipfile, hashlib, os
-          src='input/Remote_ATV_5.0.5_原版介面保留_停用更新檢查_測試候選.apk'
+          src='input/Remote_ATV_5.0.5_停用更新檢查_候選版.apk'
           out='Remote_ATV_5.0.5_R5_原版介面_預設修正_移除四項選單_停用更新_unsigned.apk'
           expected_lib='a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875'
           patches={
