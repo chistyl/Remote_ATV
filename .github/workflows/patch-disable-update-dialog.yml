@@ -232,13 +232,23 @@ jobs:
               lib=z.read("lib/arm64-v8a/libapp.so")
               phoff=struct.unpack_from("<Q",lib,32)[0]
               pe,pn=struct.unpack_from("<HH",lib,54)
-              va=0x7505e8; off=None
-              for i in range(pn):
-                  p=phoff+i*pe
-                  typ,flags,po,pv,_,fs,_,_=struct.unpack_from("<IIQQQQQQ",lib,p)
-                  if typ==1 and flags&1 and pv<=va and va+4<=pv+fs:
-                      off=po+va-pv; break
-              assert off is not None and lib[off:off+4]==bytes.fromhex("e00316aa")
+              def off_for(va):
+                  for i in range(pn):
+                      p=phoff+i*pe
+                      typ,flags,po,pv,_,fs,_,_=struct.unpack_from("<IIQQQQQQ",lib,p)
+                      if typ==1 and flags&1 and pv<=va and va+4<=pv+fs:
+                          return po+va-pv
+                  raise AssertionError(f"missing executable VA 0x{va:x}")
+              expected={
+                  0x7505e8:"e00316aa",
+                  0x44cd78:"2e000014",
+                  0x44ceb0:"22000014",
+                  0x44cfb8:"22000014",
+                  0x44d25c:"4c000014",
+              }
+              for va,hexbytes in expected.items():
+                  off=off_for(va)
+                  assert lib[off:off+4]==bytes.fromhex(hexbytes), (hex(va),lib[off:off+4].hex())
               assert "AndroidManifest.xml" in z.namelist()
           print("ZIP integrity: PASS")
           print("AOT update-check bypass instruction at VA 0x7505e8: PASS")
