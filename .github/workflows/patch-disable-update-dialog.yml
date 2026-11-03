@@ -1,0 +1,155 @@
+name: Patch Remote ATV 5.0.5 - hide update dialog
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch-and-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact 5.0.5 input
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Patch only the update-dialog dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, os, struct, zipfile
+          from pathlib import Path
+
+          src = Path("input/Remote_ATV_5.0.5_繁體中文_候選版.apk")
+          out = Path("Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk")
+          expected_apk = "8a7a682daf4ea69641d28d800b0a521b8273b59a98e36319482b1013a87a30ef"
+          expected_lib = "a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875"
+          va = 0x7505e8
+          old = bytes.fromhex("13000094")  # BL 0x750634 (update-dialog decision/presentation)
+          new = bytes.fromhex("e00316aa")  # mov x0, x22 (Dart null); next cmp branches around dialog handling
+
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          if not src.is_file():
+              raise SystemExit(f"Missing exact target APK: {src}")
+          apk_bytes = src.read_bytes()
+          if sha(apk_bytes) != expected_apk:
+              raise SystemExit("Input APK SHA256 mismatch; refusing to patch an unverified build.")
+
+          with zipfile.ZipFile(src, "r") as zin:
+              names = zin.namelist()
+              libname = "lib/arm64-v8a/libapp.so"
+              if libname not in names:
+                  raise SystemExit(f"Missing {libname}")
+              lib = zin.read(libname)
+              if sha(lib) != expected_lib:
+                  raise SystemExit("libapp.so SHA256 mismatch; refusing to patch an unknown AOT snapshot.")
+
+              if lib[:4] != b"\\x7fELF" or lib[4] != 2 or lib[5] != 1:
+                  raise SystemExit("Unexpected libapp.so ELF format.")
+              phoff = struct.unpack_from("<Q", lib, 32)[0]
+              phentsize, phnum = struct.unpack_from("<HH", lib, 54)
+              fileoff = None
+              for i in range(phnum):
+                  p = phoff + i * phentsize
+                  p_type, p_flags, p_offset, p_vaddr, _, p_filesz, _, _ = struct.unpack_from("<IIQQQQQQ", lib, p)
+                  if p_type == 1 and (p_flags & 1) and p_vaddr <= va and va + 4 <= p_vaddr + p_filesz:
+                      fileoff = p_offset + va - p_vaddr
+                      break
+              if fileoff is None:
+                  raise SystemExit("Target VA is not inside an executable PT_LOAD segment.")
+              if lib[fileoff:fileoff+4] != old:
+                  raise SystemExit(f"Unexpected instruction at VA 0x{va:x}: {lib[fileoff:fileoff+4].hex()}")
+
+              word = struct.unpack("<I", old)[0]
+              imm26 = word & 0x03ffffff
+              if imm26 & (1 << 25): imm26 -= 1 << 26
+              target = va + (imm26 << 2)
+              if target != 0x750634:
+                  raise SystemExit(f"Unexpected BL target: 0x{target:x}")
+
+              patched = bytearray(lib)
+              patched[fileoff:fileoff+4] = new
+              if sum(a != b for a, b in zip(lib, patched)) != 4:
+                  raise SystemExit("Unexpected patch footprint.")
+              if sha(bytes(patched)) == sha(lib):
+                  raise SystemExit("Patch did not change libapp.so.")
+
+              with zipfile.ZipFile(out, "w") as zout:
+                  for info in zin.infolist():
+                      payload = bytes(patched) if info.filename == libname else zin.read(info.filename)
+                      zout.writestr(info, payload)
+
+          with zipfile.ZipFile(out, "r") as check:
+              bad = check.testzip()
+              if bad:
+                  raise SystemExit(f"ZIP integrity failure: {bad}")
+              checklib = check.read("lib/arm64-v8a/libapp.so")
+              if checklib[fileoff:fileoff+4] != new:
+                  raise SystemExit("Patched instruction verification failed.")
+              for name in names:
+                  if name != "lib/arm64-v8a/libapp.so" and check.read(name) != zipfile.ZipFile(src).read(name):
+                      raise SystemExit(f"Unexpected modified APK entry: {name}")
+          print(f"APK input SHA256: {sha(apk_bytes)}")
+          print(f"Original libapp SHA256: {sha(lib)}")
+          print(f"Patched libapp SHA256: {sha(bytes(patched))}")
+          print(f"Patch VA: 0x{va:x}; ELF file offset: 0x{fileoff:x}")
+          print(f"Instruction: {old.hex()} (BL 0x750634) -> {new.hex()} (mov x0, x22)")
+          print("Only lib/arm64-v8a/libapp.so changed; all other APK entries verified identical.")
+          PY
+
+      - name: Align and sign test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+          zipalign -f -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
+          keytool -genkeypair -v -keystore test-debug.keystore -storepass android -alias remote-atv-test -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Test,O=Debug,C=TW"
+          apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
+          apksigner verify --verbose --print-certs "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
+          zipalign -c -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
+
+      - name: Runtime-independent APK and patch checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, struct, zipfile
+          from pathlib import Path
+          apk=Path("Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk")
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None
+              lib=z.read("lib/arm64-v8a/libapp.so")
+              phoff=struct.unpack_from("<Q",lib,32)[0]
+              pe,pn=struct.unpack_from("<HH",lib,54)
+              va=0x7505e8; off=None
+              for i in range(pn):
+                  p=phoff+i*pe
+                  typ,flags,po,pv,_,fs,_,_=struct.unpack_from("<IIQQQQQQ",lib,p)
+                  if typ==1 and flags&1 and pv<=va and va+4<=pv+fs:
+                      off=po+va-pv; break
+              assert off is not None and lib[off:off+4]==bytes.fromhex("e00316aa")
+              assert "AndroidManifest.xml" in z.namelist()
+          print("ZIP integrity: PASS")
+          print("AOT patch bytes at VA 0x7505e8: PASS")
+          print("AndroidManifest present: PASS")
+          print("Signed APK SHA256:",hashlib.sha256(apk.read_bytes()).hexdigest())
+          PY
+
+      - name: Upload patched debug APK and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-no-update-dialog-debug
+          path: |
+            Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk
+            Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
