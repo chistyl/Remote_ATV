@@ -57,6 +57,69 @@ jobs:
             done
           } > flutter-engine-version-scan.txt
 
+      - name: Verify prior update-dialog code locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
+          mkdir -p work
+          unzip -p "$APK" lib/arm64-v8a/libapp.so > work/libapp.so
+          test -s work/libapp.so
+          readelf -h -lW work/libapp.so > work/libapp-elf.txt
+          python3 - <<'PY'
+          import struct
+          path = "work/libapp.so"
+          targets = [0x4a8334, 0x4aa3c8, 0x4aa308, 0x4aa034]
+          data = open(path, "rb").read()
+          if data[:4] != b"\\x7fELF" or data[4] != 2 or data[5] != 1:
+              raise SystemExit("Expected ELF64 little-endian libapp.so")
+          phoff = struct.unpack_from("<Q", data, 32)[0]
+          phentsize, phnum = struct.unpack_from("<HH", data, 54)
+          loads = []
+          for i in range(phnum):
+              off = phoff + i * phentsize
+              p_type, p_flags = struct.unpack_from("<II", data, off)
+              p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align = struct.unpack_from("<QQQQQQ", data, off+8)
+              if p_type == 1:
+                  loads.append((p_vaddr, p_offset, p_filesz, p_flags))
+          with open("work/update-dialog-address-check.txt", "w") as out:
+              for va in targets:
+                  matches = [(v, o, n, fl) for v,o,n,fl in loads if v <= va < v+n]
+                  out.write(f"VA 0x{va:x}: ")
+                  if not matches:
+                      out.write("NOT IN FILE-BACKED PT_LOAD SEGMENT\\n")
+                      continue
+                  v,o,n,fl = matches[0]
+                  fo = o + (va-v)
+                  out.write(f"file_offset=0x{fo:x}, segment_flags=0x{fl:x}, bytes=")
+                  out.write(data[fo:fo+32].hex(" ") + "\\n")
+          PY
+          python3 -m pip install --quiet capstone
+          python3 - <<'PY'
+          import struct
+          from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+          data=open("work/libapp.so","rb").read()
+          phoff=struct.unpack_from("<Q",data,32)[0]
+          entsize,num=struct.unpack_from("<HH",data,54)
+          loads=[]
+          for i in range(num):
+              o=phoff+i*entsize
+              typ,flags=struct.unpack_from("<II",data,o)
+              po,pv,_,fs,_,_=struct.unpack_from("<QQQQQQ",data,o+8)
+              if typ==1: loads.append((pv,po,fs,flags))
+          md=Cs(CS_ARCH_ARM64,CS_MODE_ARM)
+          with open("work/update-dialog-disassembly.txt","w") as out:
+              for va in [0x4a8334,0x4aa3c8,0x4aa308,0x4aa034]:
+                  seg=next(((v,o,n,f) for v,o,n,f in loads if v<=va<v+n and f&1),None)
+                  out.write(f"\\n=== VA 0x{va:x} ===\\n")
+                  if not seg:
+                      out.write("Not in executable file-backed segment\\n"); continue
+                  v,o,n,f=seg
+                  fo=o+(va-v)
+                  start=max(o,fo-32); end=min(o+n,fo+128)
+                  for ins in md.disasm(data[start:end], v+(start-o)):
+                      out.write(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}\\n")
+          PY
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -70,5 +133,8 @@ jobs:
             flutter-engine-version-scan.txt
             decoded/smali*/
             decoded/AndroidManifest.xml
+            work/libapp-elf.txt
+            work/update-dialog-address-check.txt
+            work/update-dialog-disassembly.txt
           if-no-files-found: error
           retention-days: 14
