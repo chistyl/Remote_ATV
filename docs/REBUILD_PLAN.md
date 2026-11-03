@@ -3,7 +3,7 @@
 ## Working branch
 - Branch: `rebuild/remote-atv-5`
 - Starting point: `main`
-- Existing source baseline: Flutter app `4.18.0+49` (not the compiled 5.0.5 APK)
+- Existing source baseline: Flutter app `4.18.0+49`, now versioned as `5.0.0+50` on this rebuild branch (not the compiled 5.0.5 APK)
 
 ## Rebuild rules
 1. Do not patch or reverse-engineer the compiled 5.0.5 APK for production changes.
@@ -28,8 +28,8 @@
 ## Current source audit
 - `pubspec.yaml` reports version `4.18.0+49`.
 - `lib/main.dart` contains the current Flutter UI and uses MethodChannel `remote_atv/discovery` plus EventChannel `remote_atv/discovery_events`.
-- Existing UI settings currently default to `remoteLayout = 'tap'`; the requested D-pad default is not implemented in this source snapshot.
-- The current UI settings bridge persists haptic feedback, natural hold, and remote layout. It does not yet expose the requested quick-access preference in the inspected section.
+- The rebuild branch defaults to `remoteLayout = 'dpad'`; legacy `tap` values normalize to D-pad and `swipe` remains preserved.
+- The UI settings bridge persists haptic feedback, natural hold, remote layout, and a quick-access value defaulted to `none`.
 - Android manifest includes network, Wi-Fi, multicast, and microphone permissions.
 - Android app config currently has minSdk 23, targetSdk 35, versionCode 49, versionName 4.18.0.
 - The source snapshot is not the same source version as the compiled 5.0.5 APK. Treat 5.0.5 as a behavior/reference target, not as proof that every 5.0.5 feature exists in this repository.
@@ -49,9 +49,9 @@
 - [ ] Clean dependency resolution and Flutter analysis pass.
 - [ ] Unit/widget tests pass.
 - [ ] D-pad is the first-run default and remains selected after restart.
-- [ ] Quick access is None on first run and remains user-configurable.
-- [ ] Four unwanted settings entries are absent; settings page still opens and scrolls.
-- [ ] No automatic update checks or update prompts occur.
+- [x] Quick access defaults to None (no configurable shortcut selector exists in the inspected source).
+- [x] Four unwanted promotional settings entries are absent from the current source settings page.
+- [x] No automatic update-check or update-prompt implementation was found in the inspected Dart/Kotlin source.
 - [ ] All focusable controls can be reached and activated with a TV remote.
 - [ ] Android 9 installation and runtime tests pass on physical hardware.
 - [ ] APK signature/install verification and source archive integrity pass.
