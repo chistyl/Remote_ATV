@@ -161,3 +161,110 @@ jobs:
           path: ci-reports/
           if-no-files-found: warn
           retention-days: 14
+
+  patch-target-505:
+    name: Patch original Remote ATV 5.0.5 update dialog
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact 5.0.5 input
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Patch and verify the dialog dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, struct, zipfile
+          from pathlib import Path
+          src=Path("input/Remote_ATV_5.0.5_繁體中文_候選版.apk")
+          unsigned=Path("Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk")
+          expected_apk="8a7a682daf4ea69641d28d800b0a521b8273b59a98e36319482b1013a87a30ef"
+          expected_lib="a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875"
+          va=0x7505e8
+          old=bytes.fromhex("13000094")
+          new=bytes.fromhex("e00316aa")
+          sha=lambda b: hashlib.sha256(b).hexdigest()
+          if not src.is_file() or sha(src.read_bytes()) != expected_apk:
+              raise SystemExit("Target APK missing or SHA256 mismatch.")
+          with zipfile.ZipFile(src) as zin:
+              libname="lib/arm64-v8a/libapp.so"
+              lib=zin.read(libname)
+              if sha(lib) != expected_lib: raise SystemExit("AOT snapshot SHA256 mismatch.")
+              if lib[:4] != b"\\x7fELF" or lib[4] != 2 or lib[5] != 1: raise SystemExit("Unexpected ELF format.")
+              phoff=struct.unpack_from("<Q",lib,32)[0]
+              pe,pn=struct.unpack_from("<HH",lib,54)
+              off=None
+              for i in range(pn):
+                  p=phoff+i*pe
+                  typ,flags,po,pv,_,fs,_,_=struct.unpack_from("<IIQQQQQQ",lib,p)
+                  if typ==1 and flags&1 and pv<=va and va+4<=pv+fs:
+                      off=po+va-pv; break
+              if off is None or lib[off:off+4] != old: raise SystemExit("Expected BL 0x750634 not found.")
+              ins=struct.unpack("<I",old)[0]; imm=ins&0x03ffffff
+              if imm&(1<<25): imm-=1<<26
+              if va+(imm<<2)!=0x750634: raise SystemExit("BL target mismatch.")
+              patched=bytearray(lib); patched[off:off+4]=new
+              with zipfile.ZipFile(unsigned,"w") as zout:
+                  for info in zin.infolist():
+                      data=bytes(patched) if info.filename==libname else zin.read(info.filename)
+                      zout.writestr(info,data)
+          with zipfile.ZipFile(src) as original, zipfile.ZipFile(unsigned) as result:
+              assert result.testzip() is None
+              assert result.read(libname)[off:off+4]==new
+              assert set(original.namelist())==set(result.namelist())
+              for name in original.namelist():
+                  if name!=libname: assert original.read(name)==result.read(name), name
+          print("Original APK SHA256:",expected_apk)
+          print("Original libapp SHA256:",expected_lib)
+          print("Patch VA 0x7505e8 / file offset 0x%x" % off)
+          print("BL 0x750634 -> mov x0, x22 (Dart null)")
+          print("Only libapp.so changed; all other APK entries identical.")
+          PY
+
+      - name: Align and sign test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+          zipalign -f -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
+          keytool -genkeypair -keystore test-debug.keystore -storepass android -alias remote-atv-test -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Test,O=Debug,C=TW"
+          apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
+          apksigner verify --verbose --print-certs "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
+          zipalign -c -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
+
+      - name: Final APK checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, struct, zipfile
+          p="Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              lib=z.read("lib/arm64-v8a/libapp.so")
+              assert lib[0x7505e8:0x7505ec]==bytes.fromhex("e00316aa")
+              assert "AndroidManifest.xml" in z.namelist()
+          print("APK ZIP integrity: PASS")
+          print("Patched AOT instruction: PASS")
+          print("Manifest presence: PASS")
+          print("Signed APK SHA256:",hashlib.sha256(open(p,"rb").read()).hexdigest())
+          PY
+
+      - name: Upload patched 5.0.5 debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-no-update-dialog-debug
+          path: |
+            Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk
+            Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
