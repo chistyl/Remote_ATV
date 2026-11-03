@@ -56,6 +56,22 @@ jobs:
           for i in md.disasm(data,start):
               lines.append(f"0x{i.address:08x}: {i.mnemonic:8s} {i.op_str}")
           Path("work/diag/menu-builder-range.txt").write_text("\\n".join(lines),encoding="utf-8")
+          # Dump row-construction helper functions called by the settings page.
+          helper_ranges=[(0x444200,0x444900),(0x4449a8,0x444fe4),(0x443fa4,0x444134),(0x440dec,0x44140c)]
+          with path.open("rb") as hf:
+              elf3=ELFFile(hf)
+              hsegs=[s for s in elf3.iter_segments() if s['p_type']=='PT_LOAD' and (int(s['p_flags'])&1)]
+              hlines=[]
+              for hs,he in helper_ranges:
+                  sg=next((q for q in hsegs if int(q['p_vaddr'])<=hs and he<=int(q['p_vaddr'])+int(q['p_filesz'])),None)
+                  if sg is None:
+                      hlines.append(f"===== helper 0x{hs:x}-0x{he:x}: not executable =====")
+                      continue
+                  hf.seek(int(sg['p_offset'])+hs-int(sg['p_vaddr']))
+                  hd=hf.read(he-hs)
+                  hlines.append(f"===== helper 0x{hs:x}-0x{he:x} =====")
+                  hlines.extend(f"0x{i.address:08x}: {i.mnemonic:8s} {i.op_str}" for i in md.disasm(hd,hs))
+          Path("work/diag/menu-helper-ranges.txt").write_text("\\n".join(hlines),encoding="utf-8")
           # Scan all executable AOT code for references to the menu item constants and enum defaults.
           import re
           targets={
