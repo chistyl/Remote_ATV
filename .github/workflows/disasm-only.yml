@@ -126,7 +126,9 @@ jobs:
               for seg5 in elf5.iter_segments():
                   if seg5['p_type']!='PT_LOAD' or not (int(seg5['p_flags'])&1):
                       continue
-                  ins5=list(md.disasm(seg5.data(),int(seg5['p_vaddr'])))
+                  scan_f.seek(int(seg5['p_offset']))
+                  code5=scan_f.read(int(seg5['p_filesz']))
+                  ins5=list(md.disasm(code5,int(seg5['p_vaddr'])))
                   for idx5,inst5 in enumerate(ins5):
                       if inst5.mnemonic=="ldr":
                           for off5,label5 in direct_targets.items():
