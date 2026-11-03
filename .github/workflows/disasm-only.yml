@@ -49,7 +49,8 @@ jobs:
           if seg is None:
               raise SystemExit("Menu builder range is outside executable PT_LOAD.")
           off=int(seg['p_offset'])+start-int(seg['p_vaddr'])
-          f.seek(off); data=f.read(end-start)
+          with path.open("rb") as f2:
+              f2.seek(off); data=f2.read(end-start)
           lines=[f"===== suspected menu builder 0x{start:x}-0x{end:x} ====="]
           for i in md.disasm(data,start):
               lines.append(f"0x{i.address:08x}: {i.mnemonic:8s} {i.op_str}")
