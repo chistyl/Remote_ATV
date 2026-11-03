@@ -71,7 +71,7 @@ jobs:
           path = "work/libapp.so"
           targets = [0x4a8334, 0x4aa3c8, 0x4aa308, 0x4aa034]
           data = open(path, "rb").read()
-          if data[:4] != b"\\x7fELF" or data[4] != 2 or data[5] != 1:
+          if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
               raise SystemExit("Expected ELF64 little-endian libapp.so")
           phoff = struct.unpack_from("<Q", data, 32)[0]
           phentsize, phnum = struct.unpack_from("<HH", data, 54)
