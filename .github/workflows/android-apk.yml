@@ -2,7 +2,7 @@ name: Android APK Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, rebuild/remote-atv-5 ]
   pull_request:
   workflow_dispatch:
 
@@ -281,7 +281,7 @@ jobs:
           retention-days: 14
 
   sign-existing-r4:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/rebuild/remote-atv-5' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     name: Re-sign R4 APK with Android v2
     runs-on: ubuntu-latest
     timeout-minutes: 20
