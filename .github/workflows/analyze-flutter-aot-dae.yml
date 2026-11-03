@@ -45,6 +45,22 @@ jobs:
           file work/analysis/libapp.so | tee work/diagnostics/elf.txt
           sha256sum work/analysis/libapp.so | tee work/diagnostics/libapp.sha256
 
+      - name: Analyze ARM64 Flutter AOT with Blutter
+        id: blutter
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-pyelftools python3-requests cmake ninja-build build-essential pkg-config libicu-dev libcapstone-dev
+          git clone --depth 1 https://github.com/worawit/blutter.git work/blutter
+          unzip -p "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" lib/arm64-v8a/libflutter.so > work/analysis/libflutter.so
+          test -s work/analysis/libflutter.so
+          python3 work/blutter/blutter.py work/analysis work/blutter-out > work/diagnostics/blutter-build.log 2>&1
+          echo "Blutter exit=$?" >> work/diagnostics/exit-codes.txt
+          find work/blutter-out -maxdepth 4 -type f -printf '%p %s bytes\\n' 2>/dev/null | sort > work/diagnostics/blutter-files.txt
+          grep -RniE 'Quick access|Remote layout|Share with friends|Rate and Review|Feedback|Activate premium|upgrader.dialog.title|tv_app_version|later_update_button_press' work/blutter-out > work/diagnostics/blutter-ui-matches.txt 2>/dev/null || true
+
       - name: Scan raw Flutter AOT strings for update logic
         shell: bash
         run: |
@@ -128,6 +144,9 @@ jobs:
             work/dae-binary.sha256
             work/diagnostics/
             work/profile-probes/
+            work/blutter-out/
+            work/diagnostics/blutter-*.log
+            work/diagnostics/blutter-*.txt
             work/dae-out/
           if-no-files-found: warn
           retention-days: 14
