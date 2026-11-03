@@ -141,6 +141,42 @@ jobs:
               dlines.extend(f"0x{x.address:08x}: {x.mnemonic:8s} {x.op_str}" for x in window4)
           Path("work/diag/direct-menu-callback-xrefs.txt").write_text("\\n".join(dlines),encoding="utf-8")
           print(f"Found {len(direct_refs)} direct PP callback references.")
+          semantic_targets={0x38:{0xc58:"Feedback label"},0x39:{0x8e0:"Activate premium label",0x9c8:"Rate and Review label",0x9d0:"Share with friends label"},0x12:{0xb98:"feedback_clicked",0xba8:"rate_and_review_clicked",0xbf0:"share_with_friends_clicked"}}
+          semantic_refs=[]
+          with path.open("rb") as sem_f:
+              elf5=ELFFile(sem_f)
+              for seg5 in elf5.iter_segments():
+                  if seg5['p_type']!='PT_LOAD' or not (int(seg5['p_flags'])&1):
+                      continue
+                  ins5=list(md.disasm(seg5.data(),int(seg5['p_vaddr'])))
+                  for idx5,inst5 in enumerate(ins5):
+                      if inst5.mnemonic!="add":
+                          continue
+                      parts5=[q.strip() for q in inst5.op_str.split(",")]
+                      if len(parts5)<4 or parts5[1]!="x27" or parts5[3]!="lsl #12":
+                          continue
+                      pm=re.fullmatch(r"#0x([0-9a-fA-F]+)",parts5[2])
+                      if not pm:
+                          continue
+                      page5=int(pm.group(1),16)
+                      if page5 not in semantic_targets:
+                          continue
+                      dest5=parts5[0]
+                      for nxt5 in ins5[idx5+1:idx5+4]:
+                          if nxt5.mnemonic!="ldr":
+                              continue
+                          lm=re.fullmatch(r"[^,]+, \["+re.escape(dest5)+r", #0x([0-9a-fA-F]+)\]",nxt5.op_str)
+                          if not lm:
+                              continue
+                          off5=int(lm.group(1),16)
+                          if off5 in semantic_targets[page5]:
+                              semantic_refs.append((inst5.address,page5,off5,semantic_targets[page5][off5],ins5[max(0,idx5-8):min(len(ins5),idx5+12)]))
+          slines=[]
+          for addr5,page5,off5,label5,window5 in semantic_refs:
+              slines.append(f"===== PP+0x{page5:x}{off5:03x} ({label5}) referenced near 0x{addr5:x} =====")
+              slines.extend(f"0x{x.address:08x}: {x.mnemonic:8s} {x.op_str}" for x in window5)
+          Path("work/diag/semantic-settings-xrefs.txt").write_text("\\n".join(slines),encoding="utf-8")
+          print(f"Found {len(semantic_refs)} semantic settings references.")
           PY
           python3 work/diag/disassemble.py
       - name: Upload exact AOT and disassembly
