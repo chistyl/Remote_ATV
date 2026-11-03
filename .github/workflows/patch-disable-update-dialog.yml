@@ -188,11 +188,11 @@ jobs:
           BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           test -x "$BT/zipalign"
           test -x "$BT/apksigner"
-          zipalign -f -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
+          "$BT/zipalign" -f -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
           keytool -genkeypair -v -keystore test-debug.keystore -storepass android -alias remote-atv-test -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Test,O=Debug,C=TW"
-          apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
-          apksigner verify --verbose --print-certs "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
-          zipalign -c -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
+          "$BT/apksigner" sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
+          "$BT/apksigner" verify --verbose --print-certs "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
+          "$BT/zipalign" -c -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
 
       - name: Runtime-independent APK and patch checks
         shell: bash
