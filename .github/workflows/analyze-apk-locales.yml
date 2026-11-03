@@ -210,6 +210,25 @@ jobs:
             echo "Changed string diff preview:"
             sed -n '1,240p' work/all-strings.diff
           } > work/all-strings-summary.txt
+      - name: Decompile Flutter AOT snapshot with Blutter
+        shell: bash
+        timeout-minutes: 45
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-pyelftools python3-requests cmake ninja-build build-essential pkg-config libicu-dev libcapstone-dev
+          mkdir -p work/base-lib
+          unzip -p "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" lib/arm64-v8a/libapp.so > work/base-lib/libapp.so
+          unzip -p "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" lib/arm64-v8a/libflutter.so > work/base-lib/libflutter.so
+          git clone --depth 1 https://github.com/worawit/blutter.git work/blutter-src
+          python3 work/blutter-src/blutter.py work/base-lib work/blutter-base
+          {
+            echo "Blutter output files:"
+            find work/blutter-base -maxdepth 3 -type f | sort | head -300
+            echo
+            echo "Updater-related AOT references:"
+            grep -RniE 'upgrader|force_update_dialog_shown|optional_update_dialog_shown|userIgnoredVersion|UPDATE NOW|later_update_button_press|update_dialog_app_version|tv_app_version|minAppVersion|isUpdateAvailable' work/blutter-base --exclude='*.so' || true
+          } > work/blutter-updater-matches.txt
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -237,5 +256,8 @@ jobs:
             work/flutter-binary-diff-map.txt
             work/all-strings.diff
             work/all-strings-summary.txt
+            work/blutter-updater-matches.txt
+            work/blutter-base/objs.txt
+            work/blutter-base/pp.txt
           if-no-files-found: error
           retention-days: 14
