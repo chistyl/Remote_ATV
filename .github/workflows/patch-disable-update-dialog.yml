@@ -190,18 +190,19 @@ jobs:
           test -x "$BT/apksigner"
           zipalign -f -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
           keytool -genkeypair -v -keystore test-debug.keystore -storepass android -alias remote-atv-test -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Test,O=Debug,C=TW"
-          apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
-          apksigner verify --verbose --print-certs "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
-          zipalign -c -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
+          apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
+          apksigner verify --verbose --print-certs "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
+          zipalign -c -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
 
       - name: Runtime-independent APK and patch checks
         shell: bash
         run: |
           set -euo pipefail
+          apk="Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
           python3 - <<'PY'
           import hashlib, struct, zipfile
           from pathlib import Path
-          apk=Path("Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk")
+          apk=Path("Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk")
           with zipfile.ZipFile(apk) as z:
               assert z.testzip() is None
               lib=z.read("lib/arm64-v8a/libapp.so")
@@ -216,7 +217,7 @@ jobs:
               assert off is not None and lib[off:off+4]==bytes.fromhex("e00316aa")
               assert "AndroidManifest.xml" in z.namelist()
           print("ZIP integrity: PASS")
-          print("AOT patch bytes at VA 0x7505e8: PASS")
+          print("AOT update-check bypass instruction at VA 0x7505e8: PASS")
           print("AndroidManifest present: PASS")
           print("Signed APK SHA256:",hashlib.sha256(apk.read_bytes()).hexdigest())
           PY
@@ -231,7 +232,6 @@ jobs:
           aapt dump badging "$apk" | grep -E "package: name='tech.simha.androidtvremote'.*versionCode='29'.*versionName='5.0.5'"
           echo "First-install preference defaults in signed DEX: PASS"
           echo "Package/version metadata 5.0.5: PASS"
-          PY
 
       - name: Upload patched debug APK and report
         uses: actions/upload-artifact@v4
