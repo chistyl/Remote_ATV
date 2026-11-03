@@ -259,5 +259,7 @@ jobs:
             work/blutter-updater-matches.txt
             work/blutter-base/objs.txt
             work/blutter-base/pp.txt
+            work/blutter-base/asm/lSh.dart
+            work/blutter-base/asm/Euh.dart
           if-no-files-found: error
           retention-days: 14
