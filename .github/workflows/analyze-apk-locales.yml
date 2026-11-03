@@ -163,6 +163,9 @@ jobs:
             work/update-dialog-disassembly.txt
             work/apk-sha256.txt
             work/libapp-sha256.txt
-            work/candidate-comparison.txt\n            work/baseline-update-strings.txt\n            work/candidate-update-strings.txt\n            work/candidate-update-strings.diff
+            work/candidate-comparison.txt
+            work/baseline-update-strings.txt
+            work/candidate-update-strings.txt
+            work/candidate-update-strings.diff
           if-no-files-found: error
           retention-days: 14
