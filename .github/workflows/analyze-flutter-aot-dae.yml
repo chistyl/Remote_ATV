@@ -127,6 +127,7 @@ jobs:
             work/dae-version.txt
             work/dae-binary.sha256
             work/diagnostics/
+            work/profile-probes/
             work/dae-out/
           if-no-files-found: warn
           retention-days: 14
