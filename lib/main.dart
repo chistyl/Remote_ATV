@@ -191,8 +191,7 @@ class _RemoteHomeState extends State<RemoteHome> {
       if (state == 'disconnected') {
         final securityFailure = message.contains('憑證') || message.contains('TLS') || message.contains('身分驗證');
         if (!securityFailure && !_manualDisconnect) _scheduleReconnect();
-        else if (securityFailure) _notice('$message
-安全驗證未通過，已停止自動重連；請確認電視是否重設或重新配對。');
+        else if (securityFailure) _notice('$message\n安全驗證未通過，已停止自動重連；請確認電視是否重設或重新配對。');
       }
     }
   }
@@ -301,8 +300,8 @@ class _RemoteHomeState extends State<RemoteHome> {
       if (value is Map && mounted) setState(() {
         hapticFeedback = value['haptic'] != false;
         naturalHold = value['naturalHold'] != false;
-        // Backward compatibility: legacy 'tap' is the D-pad control layout.
-        remoteLayout = (value['remoteLayout'] == 'swipe') ? 'swipe' : 'dpad';
+        // Legacy 'tap' maps to the D-pad layout.
+        remoteLayout = value['remoteLayout'] == 'swipe' ? 'swipe' : 'dpad';
         quickAccess = 'none';
       });
     } catch (_) { }
@@ -407,8 +406,7 @@ class _RemoteHomeState extends State<RemoteHome> {
         final securityFailure = detail.contains('憑證') || detail.contains('TLS') || detail.contains('身分驗證');
         if (!quiet) _notice(detail);
         else if (!securityFailure && _reconnectAttempts < 3) _scheduleReconnect();
-        else if (securityFailure) _notice('$detail
-安全驗證未通過，已停止自動重連。');
+        else if (securityFailure) _notice('$detail\n安全驗證未通過，已停止自動重連。');
       }
     }
   }
@@ -585,28 +583,13 @@ class _RemoteHomeState extends State<RemoteHome> {
       title: const Text('連線診斷記錄'),
       content: SizedBox(width: 560, height: 480, child: Column(children: [
         Row(children: [
-          Expanded(child: Text('版本：$appVersionLabel
-連線：${connected ? "已連線" : "未連線"}
-裝置：$deviceName
-搜尋：$discoveryStatus
-遙控服務：${!connected ? "未連線" : !remoteServiceKnown ? "等待回報" : remoteServiceStarted ? "已啟動" : "未啟動"}
-音量：${!connected ? "未連線" : !tvVolumeKnown ? "等待回報" : tvVolumeMuted ? "靜音" : "$tvVolumeLevel / $tvVolumeMax"}', style: const TextStyle(fontSize: 12, color: Colors.white70))),
+          Expanded(child: Text('版本：$appVersionLabel\n連線：${connected ? "已連線" : "未連線"}\n裝置：$deviceName\n搜尋：$discoveryStatus\n遙控服務：${!connected ? "未連線" : !remoteServiceKnown ? "等待回報" : remoteServiceStarted ? "已啟動" : "未啟動"}\n音量：${!connected ? "未連線" : !tvVolumeKnown ? "等待回報" : tvVolumeMuted ? "靜音" : "$tvVolumeLevel / $tvVolumeMax"}', style: const TextStyle(fontSize: 12, color: Colors.white70))),
           IconButton(tooltip: '更新連線資訊', onPressed: () async { await _refreshConnectionDiagnostics(); refreshDialog(() {}); }, icon: const Icon(Icons.refresh)),
-          IconButton(tooltip: '複製記錄', onPressed: () { final d = _connectionDiagnostics; final summary = '連線健康資訊：
-${d.entries.map((e) => '${e.key}: ${e.value}').join('
-')}
-
-事件記錄：
-${_diagnosticLogs.reversed.join('
-')}'; Clipboard.setData(ClipboardData(text: summary)); _notice('診斷記錄已複製'); }, icon: const Icon(Icons.copy)),
+          IconButton(tooltip: '複製記錄', onPressed: () { final d = _connectionDiagnostics; final summary = '連線健康資訊：\n${d.entries.map((e) => '${e.key}: ${e.value}').join('\n')}\n\n事件記錄：\n${_diagnosticLogs.reversed.join('\n')}'; Clipboard.setData(ClipboardData(text: summary)); _notice('診斷記錄已複製'); }, icon: const Icon(Icons.copy)),
           IconButton(tooltip: '清除記錄', onPressed: () { setState(() => _diagnosticLogs.clear()); _addDiagnostic('記錄已清除'); Navigator.pop(ctx); _showDiagnostics(); }, icon: const Icon(Icons.delete_outline)),
         ]),
         const Divider(),
-        Align(alignment: Alignment.centerLeft, child: Text('連線健康資訊：TLS ${((_connectionDiagnostics['tlsHandshakeMs'] as num?)?.toInt() ?? -1) >= 0 ? '${_connectionDiagnostics['tlsHandshakeMs']}' : '—'} ms｜連線時間 ${_durationLabel(_connectionDiagnostics['uptimeMs'])}
-位址 ${_connectionDiagnostics['host'] ?? '—'}:${_connectionDiagnostics['port'] ?? '—'}｜協商功能 ${(_connectionDiagnostics['negotiatedFeatures'] as List?)?.join(', ') ?? '—'}
-接收訊息 ${_connectionDiagnostics['inboundFrames'] ?? 0}｜電視 Ping ${_connectionDiagnostics['pingRequests'] ?? 0}｜Ping 回應 ${_connectionDiagnostics['pingResponses'] ?? 0}
-音量更新 ${_connectionDiagnostics['volumeUpdates'] ?? 0}｜IME 更新 ${_connectionDiagnostics['imeUpdates'] ?? 0}｜RemoteStart ${_connectionDiagnostics['remoteStartMessages'] ?? 0}
-最後接收 ${_durationLabel(_connectionDiagnostics['lastInboundAgeMs'])} 前｜最近斷線：${_connectionDiagnostics['lastDisconnectReason'] ?? '—'}', style: const TextStyle(fontSize: 11, color: Colors.white60))),
+        Align(alignment: Alignment.centerLeft, child: Text('連線健康資訊：TLS ${((_connectionDiagnostics['tlsHandshakeMs'] as num?)?.toInt() ?? -1) >= 0 ? '${_connectionDiagnostics['tlsHandshakeMs']}' : '—'} ms｜連線時間 ${_durationLabel(_connectionDiagnostics['uptimeMs'])}\n位址 ${_connectionDiagnostics['host'] ?? '—'}:${_connectionDiagnostics['port'] ?? '—'}｜協商功能 ${(_connectionDiagnostics['negotiatedFeatures'] as List?)?.join(', ') ?? '—'}\n接收訊息 ${_connectionDiagnostics['inboundFrames'] ?? 0}｜電視 Ping ${_connectionDiagnostics['pingRequests'] ?? 0}｜Ping 回應 ${_connectionDiagnostics['pingResponses'] ?? 0}\n音量更新 ${_connectionDiagnostics['volumeUpdates'] ?? 0}｜IME 更新 ${_connectionDiagnostics['imeUpdates'] ?? 0}｜RemoteStart ${_connectionDiagnostics['remoteStartMessages'] ?? 0}\n最後接收 ${_durationLabel(_connectionDiagnostics['lastInboundAgeMs'])} 前｜最近斷線：${_connectionDiagnostics['lastDisconnectReason'] ?? '—'}', style: const TextStyle(fontSize: 11, color: Colors.white60))),
         const Divider(),
         Expanded(child: _diagnosticLogs.isEmpty
           ? const Center(child: Text('目前沒有診斷記錄'))
@@ -623,7 +606,7 @@ ${_diagnosticLogs.reversed.join('
       const Text('Remote layout', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
       const SizedBox(height: 8),
       RadioListTile<String>(value: 'dpad', groupValue: remoteLayout, title: const Text('方向鍵操作'), subtitle: const Text('顯示完整方向鍵與確認按鈕。'), onChanged: (v) { setState(() => remoteLayout = v!); _saveUiSettings(); Navigator.pop(ctx); }),
-      RadioListTile<String>(value: 'swipe', groupValue: remoteLayout, title: const Text('觸控板操作'), subtitle: const Text('滑動移動游標方向，點擊確認。'), onChanged: (v) { setState(() => remoteLayout = v!); _saveUiSettings(); Navigator.pop(ctx); }),
+      RadioListTile<String>(value: 'swipe', groupValue: remoteLayout, title: const Text('觸控板操作'), subtitle: const Text('滑動移動方向，點擊確認。'), onChanged: (v) { setState(() => remoteLayout = v!); _saveUiSettings(); Navigator.pop(ctx); }),
     ]))));
   }
 
