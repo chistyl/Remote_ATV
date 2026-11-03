@@ -87,6 +87,36 @@ jobs:
           find work/dae-out work/diagnostics -maxdepth 5 -type f -printf '%p %s bytes\n' 2>/dev/null | sort > work/diagnostics/files.txt
           exit 0
 
+      - name: Probe every Android compressed-pointer Dart SDK profile
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          BIN="work/analysis/libapp.so"
+          mkdir -p work/profile-probes
+          FOUND=0
+          for PROFILE in work/dae-source/profiles/sdk/*-w32-compressed.json; do
+            LABEL="$(basename "$PROFILE" .json)"
+            LOG="work/profile-probes/$LABEL.txt"
+            set +e
+            /tmp/dae info "$BIN" --sdk-profile "$PROFILE" > "$LOG" 2>&1
+            RC=$?
+            set -e
+            LIBS="$(sed -n 's/^libraries[[:space:]]*//p' "$LOG" | head -1)"
+            CLASSES="$(sed -n 's/^classes[[:space:]]*//p' "$LOG" | head -1)"
+            if [ "$RC" -eq 0 ] && [ -n "$LIBS" ] && [ "$LIBS" -gt 0 ] && ! grep -qi 'parse drift\|alloc mismatch\|pointer-mode mismatch' "$LOG"; then
+              echo "MATCH=$LABEL libraries=$LIBS classes=$CLASSES" | tee -a work/profile-probes/matches.txt
+              /tmp/dae export "$BIN" "work/dae-out-$LABEL" --sdk-profile "$PROFILE" > "work/profile-probes/export-$LABEL.txt" 2>&1
+              FOUND=1
+              break
+            else
+              echo "NO_MATCH=$LABEL rc=$RC libraries=${LIBS:-none} classes=${CLASSES:-none}" >> work/profile-probes/summary.txt
+            fi
+          done
+          if [ "$FOUND" -eq 0 ]; then
+            echo "No trusted compressed-pointer SDK profile matched this APK." | tee work/profile-probes/NO_MATCH.txt
+          fi
+
       - name: Upload DAE source-build analysis results
         if: always()
         uses: actions/upload-artifact@v4
