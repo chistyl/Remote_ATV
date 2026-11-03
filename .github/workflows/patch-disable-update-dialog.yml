@@ -22,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Patch first-install remote defaults in Android startup
+      - name: Migrate existing install once to requested remote defaults in Android startup
         shell: bash
         run: |
           set -euo pipefail
@@ -60,31 +60,33 @@ jobs:
               invoke-interface {v0}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
               move-result-object v1
 
-              const-string v2, "flutter.navigation_choice"
+              const-string v2, "flutter.remote_atv_patch_r1_defaults_applied"
               invoke-interface {v0, v2}, Landroid/content/SharedPreferences;->contains(Ljava/lang/String;)Z
               move-result v3
-              if-nez v3, :cond_navigation_exists
+              if-nez v3, :cond_defaults_already_applied
+
+              const-string v2, "flutter.navigation_choice"
               const-string v3, "dpad"
               invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;
               move-result-object v1
-              :cond_navigation_exists
 
               const-string v2, "flutter.quick_access_choice"
-              invoke-interface {v0, v2}, Landroid/content/SharedPreferences;->contains(Ljava/lang/String;)Z
-              move-result v3
-              if-nez v3, :cond_quick_access_exists
               const-string v3, "none"
               invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;
               move-result-object v1
-              :cond_quick_access_exists
 
+              const-string v2, "flutter.remote_atv_patch_r1_defaults_applied"
+              const/4 v3, 0x1
+              invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences$Editor;->putBoolean(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;
+              move-result-object v1
               invoke-interface {v1}, Landroid/content/SharedPreferences$Editor;->apply()V
+              :cond_defaults_already_applied
               invoke-super {p0, p1}, Lio/flutter/embedding/android/d;->onCreate(Landroid/os/Bundle;)V
               return-void
           .end method
           """
           p.write_text(s+method)
-          print("Injected first-install-only SharedPreferences defaults: navigation_choice=dpad, quick_access_choice=none")
+          print("Injected one-time migration defaults: navigation_choice=dpad, quick_access_choice=none; existing settings updated once, then preserved")
           PY
           apktool b work/apk -o "Remote_ATV_5.0.5_預設值修正_基礎版.apk"
           python3 - <<'PY'
@@ -259,7 +261,7 @@ jobs:
           grep -q 'SharedPreferences\$Editor;->apply()V' "$MAIN"
           grep -q 'onCreate(Landroid/os/Bundle;)V' "$MAIN"
           aapt dump badging "$apk" | grep -E "package: name='tech.simha.androidtvremote'.*versionCode='29'.*versionName='5.0.5'"
-          echo "First-install preference defaults in signed DEX: PASS"
+          echo "One-time migration preference defaults in signed DEX: PASS"
           echo "Package/version metadata 5.0.5: PASS"
 
       - name: Upload patched debug APK and report
