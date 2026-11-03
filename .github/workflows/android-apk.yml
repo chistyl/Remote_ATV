@@ -286,11 +286,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android Build Tools
-        run: sdkmanager "build-tools;35.0.0"
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort | tail -n1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "build-tools;35.0.0"
 
       - name: Download exact R4 build artifact
         env:
