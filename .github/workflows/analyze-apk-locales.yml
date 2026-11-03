@@ -108,16 +108,26 @@ jobs:
               po,pv,_,fs,_,_=struct.unpack_from("<QQQQQQ",data,o+8)
               if typ==1: loads.append((pv,po,fs,flags))
           md=Cs(CS_ARCH_ARM64,CS_MODE_ARM)
+          ranges = [
+              ("update_dialog_builder", 0x4a8334, 0x4aa034),
+              ("update_dialog_callback_1", 0x4aa3c8, 0x4aa520),
+              ("update_dialog_callback_2", 0x4aa308, 0x4aa418),
+              ("update_dialog_callback_3", 0x4aa034, 0x4aa1b0),
+              ("upgrader_init", 0x750228, 0x75039c),
+              ("upgrader_update_check", 0x75039c, 0x750600),
+              ("upgrader_store_lookup", 0x74c17c, 0x74c500),
+              ("upgrader_version_lookup", 0x752020, 0x752400),
+          ]
           with open("work/update-dialog-disassembly.txt","w") as out:
-              for va in [0x4a8334,0x4aa3c8,0x4aa308,0x4aa034]:
-                  seg=next(((v,o,n,f) for v,o,n,f in loads if v<=va<v+n and f&1),None)
-                  out.write(f"\\n=== VA 0x{va:x} ===\\n")
+              for name, begin, finish in ranges:
+                  seg=next(((v,o,n,f) for v,o,n,f in loads if v<=begin<v+n and f&1),None)
+                  out.write(f"\\n=== {name}: VA 0x{begin:x}-0x{finish:x} ===\\n")
                   if not seg:
                       out.write("Not in executable file-backed segment\\n"); continue
                   v,o,n,f=seg
-                  fo=o+(va-v)
-                  start=max(o,fo-32); end=min(o+n,fo+128)
-                  for ins in md.disasm(data[start:end], v+(start-o)):
+                  start=o+(begin-v)
+                  end=min(o+n, o+(finish-v))
+                  for ins in md.disasm(data[start:end], begin):
                       out.write(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}\\n")
           PY
       - name: Compare baseline and supplied update-disabled candidate
