@@ -128,7 +128,7 @@ jobs:
               if sha(lib) != expected_lib:
                   raise SystemExit("libapp.so SHA256 mismatch; refusing to patch an unknown AOT snapshot.")
 
-              if lib[:4] != b"\\x7fELF" or lib[4] != 2 or lib[5] != 1:
+              if lib[:4] != b"\x7fELF" or lib[4] != 2 or lib[5] != 1:
                   raise SystemExit("Unexpected libapp.so ELF format.")
               phoff = struct.unpack_from("<Q", lib, 32)[0]
               phentsize, phnum = struct.unpack_from("<HH", lib, 54)
@@ -219,6 +219,18 @@ jobs:
           print("AOT patch bytes at VA 0x7505e8: PASS")
           print("AndroidManifest present: PASS")
           print("Signed APK SHA256:",hashlib.sha256(apk.read_bytes()).hexdigest())
+          PY
+          apktool d -f -r "$apk" -o work/final-check
+          MAIN="work/final-check/smali_classes3/tech/simha/androidtvremote/MainActivity.smali"
+          grep -q 'flutter.navigation_choice' "$MAIN"
+          grep -q 'flutter.quick_access_choice' "$MAIN"
+          grep -q 'const-string v3, "dpad"' "$MAIN"
+          grep -q 'const-string v3, "none"' "$MAIN"
+          grep -q 'SharedPreferences\$Editor;->apply()V' "$MAIN"
+          grep -q 'onCreate(Landroid/os/Bundle;)V' "$MAIN"
+          aapt dump badging "$apk" | grep -E "package: name='tech.simha.androidtvremote'.*versionCode='29'.*versionName='5.0.5'"
+          echo "First-install preference defaults in signed DEX: PASS"
+          echo "Package/version metadata 5.0.5: PASS"
           PY
 
       - name: Upload patched debug APK and report
