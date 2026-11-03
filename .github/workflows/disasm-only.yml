@@ -129,7 +129,7 @@ jobs:
                   for idx4,inst4 in enumerate(ins4):
                       if inst4.mnemonic!="ldr":
                           continue
-                      mm4=re.fullmatch(r"[^,]+, \\[x27, #0x([0-9a-fA-F]+)\\]",inst4.op_str)
+                      mm4=re.fullmatch(r"[^,]+, \[x27, #0x([0-9a-fA-F]+)\]",inst4.op_str)
                       if not mm4:
                           continue
                       off4=int(mm4.group(1),16)
