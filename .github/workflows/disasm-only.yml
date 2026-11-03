@@ -116,6 +116,31 @@ jobs:
               outrefs.extend(f"0x{x.address:08x}: {x.mnemonic:8s} {x.op_str}" for x in window)
           Path("work/diag/pp-constant-xrefs.txt").write_text("\\n".join(outrefs),encoding="utf-8")
           print(f"Found {len(refs)} PP constant references for menu and enum targets.")
+          # Direct PP-relative callback references for the settings menu actions.
+          direct_targets={0x970:"share.svg",0x978:"share callback",0x980:"review.svg",0x988:"review callback",0x990:"feedback.svg",0x998:"feedback callback",0x9a0:"subpage arrow",0x9a8:"subpage callback",0x9b0:"premium.svg",0x9b8:"premium callback",0x9c0:"menu callback"}
+          direct_refs=[]
+          with path.open("rb") as direct_f:
+              elf4=ELFFile(direct_f)
+              for seg4 in elf4.iter_segments():
+                  if seg4['p_type']!='PT_LOAD' or not (int(seg4['p_flags'])&1):
+                      continue
+                  code4=seg4.data(); base4=int(seg4['p_vaddr'])
+                  ins4=list(md.disasm(code4,base4))
+                  for idx4,inst4 in enumerate(ins4):
+                      if inst4.mnemonic!="ldr":
+                          continue
+                      mm4=re.fullmatch(r"[^,]+, \\[x27, #0x([0-9a-fA-F]+)\\]",inst4.op_str)
+                      if not mm4:
+                          continue
+                      off4=int(mm4.group(1),16)
+                      if off4 in direct_targets:
+                          direct_refs.append((inst4.address,off4,direct_targets[off4],ins4[max(0,idx4-8):min(len(ins4),idx4+10)]))
+          dlines=[]
+          for addr4,off4,label4,window4 in direct_refs:
+              dlines.append(f"===== PP+0x{off4:x} ({label4}) referenced at 0x{addr4:x} =====")
+              dlines.extend(f"0x{x.address:08x}: {x.mnemonic:8s} {x.op_str}" for x in window4)
+          Path("work/diag/direct-menu-callback-xrefs.txt").write_text("\\n".join(dlines),encoding="utf-8")
+          print(f"Found {len(direct_refs)} direct PP callback references.")
           PY
           python3 work/diag/disassemble.py
       - name: Upload exact AOT and disassembly
