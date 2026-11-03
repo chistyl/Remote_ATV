@@ -137,7 +137,6 @@ jobs:
           cmp -s work/base-classes.dex work/candidate-classes.dex && echo "classes_dex_identical=yes" >> work/candidate-comparison.txt || echo "classes_dex_identical=no" >> work/candidate-comparison.txt
           unzip -p "$CAND" META-INF/MANIFEST.MF > work/candidate-manifest.txt 2>/dev/null || true
           echo "Candidate APK metadata:" >> work/candidate-comparison.txt
-          aapt dump badging "$CAND" | head -5 >> work/candidate-comparison.txt
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
