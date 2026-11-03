@@ -145,6 +145,57 @@ jobs:
           wc -l work/baseline-update-strings.txt work/candidate-update-strings.txt >> work/candidate-comparison.txt
           echo "Candidate update strings compared with baseline:" >> work/candidate-comparison.txt
           diff -u work/baseline-update-strings.txt work/candidate-update-strings.txt >> work/candidate-update-strings.diff || true
+      - name: Locate exact Flutter update-code differences
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
+          CAND="input/Remote_ATV_5.0.5_停用更新檢查_候選版.apk"
+          unzip -p "$BASE" lib/arm64-v8a/libapp.so > work/base-libapp.so
+          unzip -p "$CAND" lib/arm64-v8a/libapp.so > work/candidate-libapp.so
+          strings -a -t x work/base-libapp.so | grep -iE 'upgrader|UPDATE NOW|LATER|force_update_dialog_shown|optional_update_dialog_shown|userIgnoredVersion|update_dialog_app_version|tv_app_version|更新資訊|更新' > work/baseline-update-string-offsets.txt || true
+          strings -a -t x work/candidate-libapp.so | grep -iE 'upgrader|UPDATE NOW|LATER|force_update_dialog_shown|optional_update_dialog_shown|userIgnoredVersion|update_dialog_app_version|tv_app_version|更新資訊|更新' > work/candidate-update-string-offsets.txt || true
+          python3 - <<'PY'
+          import struct, os
+          a=open("work/base-libapp.so","rb").read()
+          b=open("work/candidate-libapp.so","rb").read()
+          if len(a)!=len(b):
+              raise SystemExit(f"libapp size mismatch: baseline={len(a)} candidate={len(b)}")
+          diffs=[i for i,(x,y) in enumerate(zip(a,b)) if x!=y]
+          def segments(xs,gap=32):
+              if not xs: return []
+              out=[]; start=prev=xs[0]
+              for x in xs[1:]:
+                  if x-prev>gap:
+                      out.append((start,prev+1)); start=x
+                  prev=x
+              out.append((start,prev+1))
+              return out
+          phoff=struct.unpack_from("<Q",a,32)[0]
+          entsize,num=struct.unpack_from("<HH",a,54)
+          loads=[]
+          for i in range(num):
+              o=phoff+i*entsize
+              typ,flags=struct.unpack_from("<II",a,o)
+              po,pv,_,fs,_,_=struct.unpack_from("<QQQQQQ",a,o+8)
+              if typ==1: loads.append((po,po+fs,pv,flags))
+          with open("work/flutter-binary-diff-map.txt","w") as out:
+              out.write(f"baseline_size={len(a)} candidate_size={len(b)} changed_bytes={len(diffs)} changed_percent={len(diffs)/len(a)*100:.6f}%\\n")
+              ranges=segments(diffs)
+              out.write(f"changed_regions_gap32={len(ranges)}\\n")
+              for idx,(s,e) in enumerate(ranges):
+                  seg=next((x for x in loads if x[0]<=s<x[1]),None)
+                  va=(seg[2]+s-seg[0]) if seg else None
+                  out.write(f"[{idx:04d}] file=0x{s:x}-0x{e:x} length={e-s}")
+                  if va is not None: out.write(f" va=0x{va:x} executable={bool(seg[3]&1)}")
+                  out.write(f"\\nbaseline={a[s:min(e,s+48)].hex(' ')}\\ncandidate={b[s:min(e,s+48)].hex(' ')}\\n")
+              out.write("\\nExecutable changed regions only:\\n")
+              for s,e in ranges:
+                  seg=next((x for x in loads if x[0]<=s<x[1] and x[3]&1),None)
+                  if seg:
+                      va=seg[2]+s-seg[0]
+                      out.write(f"file=0x{s:x} va=0x{va:x} length={e-s}\\n")
+          PY
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -167,5 +218,8 @@ jobs:
             work/baseline-update-strings.txt
             work/candidate-update-strings.txt
             work/candidate-update-strings.diff
+            work/baseline-update-string-offsets.txt
+            work/candidate-update-string-offsets.txt
+            work/flutter-binary-diff-map.txt
           if-no-files-found: error
           retention-days: 14
