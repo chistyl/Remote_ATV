@@ -483,7 +483,10 @@ class _RemoteHomeState extends State<RemoteHome> {
     _compactAssetPill('skip-previous.svg', '上一段', 88), const SizedBox(width: 4), _compactAssetPill('rewind.svg', '倒轉', 89), const SizedBox(width: 4), _compactAssetPill('play-pause.svg', '播放', 85), const SizedBox(width: 4), _compactAssetPill('fast-forward.svg', '快轉', 90), const SizedBox(width: 4), _compactAssetPill('skip-next.svg', '下一段', 87),
   ]);
 
-  Widget _remotePage() => LayoutBuilder(builder: (context, constraints) {
+  Widget _remotePage() {
+    // Apply the selected layout to the main remote screen, not only its settings label.
+    if (remoteLayout == 'swipe') return _touchPage();
+    return LayoutBuilder(builder: (context, constraints) {
     final wide = constraints.maxWidth > constraints.maxHeight && constraints.maxWidth > 600;
     final padSize = (wide ? constraints.maxHeight - 95 : constraints.maxWidth - 44).clamp(160.0, 286.0);
     if (wide) return Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 12), child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -495,6 +498,7 @@ class _RemoteHomeState extends State<RemoteHome> {
       _topRemoteActions(), const SizedBox(height: 20), _directionPad(padSize), const SizedBox(height: 20), _volumeControls(), const SizedBox(height: 14), _channelControls(), const SizedBox(height: 14), _mediaControls(),
     ]));
   });
+  }
 
   void _beginTouchGesture() {
     _touchTravel = 0;
@@ -557,7 +561,7 @@ class _RemoteHomeState extends State<RemoteHome> {
       onPanUpdate: _handleTouchGesture,
       child: Container(width: double.infinity, decoration: BoxDecoration(color: const Color(0xFF202126), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white12)), child: const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.swipe, size: 54, color: Color(0xFFB9F36A)), SizedBox(height: 12), Text('滑動移動・點擊確認・長按連續操作'), Text('需先完成電視配對及連線', style: TextStyle(color: Colors.white54, fontSize: 12))]))))), const SizedBox(height: 8), Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [IconButton(onPressed: () => _sendKey(4), icon: const Icon(Icons.arrow_back)), IconButton(onPressed: () => _sendKey(3), icon: const Icon(Icons.home)), IconButton(onPressed: () => _sendKey(82), icon: const Icon(Icons.menu))])])); });
   Widget _settingsPage() => ListView(padding: const EdgeInsets.all(16), children: [
-    _setting(Icons.dashboard_outlined, 'Remote layout', remoteLayout == 'swipe' ? '觸控板操作' : '方向鍵操作', _showRemoteLayout),
+    _setting(Icons.dashboard_outlined, '操作模式', remoteLayout == 'swipe' ? '觸控板操作' : '方向鍵操作', _showRemoteLayout),
     _setting(Icons.tune, 'Behavior settings', 'Haptic feedback、按住操作行為', _showBehaviorSettings),
     _setting(Icons.devices, 'Connected devices', connected ? deviceName : 'No connected device', _showConnectedDevices),
     _setting(Icons.tv, 'TV settings', 'Brightness、Picture mode、HDR 等電視控制', _showTvSettings),
@@ -608,7 +612,7 @@ class _RemoteHomeState extends State<RemoteHome> {
 
   void _showRemoteLayout() {
     showModalBottomSheet(context: context, backgroundColor: const Color(0xFF202126), builder: (ctx) => SafeArea(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Remote layout', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+      const Text('操作模式', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
       const SizedBox(height: 8),
       // ignore: deprecated_member_use
       RadioListTile<String>(value: 'dpad', groupValue: remoteLayout, title: const Text('方向鍵操作'), subtitle: const Text('顯示完整方向鍵與確認按鈕。'), onChanged: (v) { setState(() => remoteLayout = v!); _saveUiSettings(); Navigator.pop(ctx); }),
