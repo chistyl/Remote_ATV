@@ -1,0 +1,65 @@
+name: Sign Remote ATV R4 with Android APK v2
+
+on:
+  push:
+    branches:
+      - rebuild/remote-atv-5
+    paths:
+      - .github/workflows/sign-r4-v2.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android Build Tools
+        run: sdkmanager "build-tools;35.0.0"
+
+      - name: Download the exact R4 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41596270210 --repo "${GITHUB_REPOSITORY}" \
+            --name remote-atv-debug-apk --dir input
+          find input -type f -maxdepth 3 -print
+          APK="$(find input -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          mkdir -p work
+          cp "$APK" work/remote-atv-r4-unsigned.apk
+
+      - name: Align and sign with v1 and v2
+        env:
+          BUILD_TOOLS: ${{ env.ANDROID_HOME }}/build-tools/35.0.0
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -v -keystore work/r4-debug.keystore \
+            -storepass android -keypass android -alias remoteatv \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Remote ATV Debug,O=Remote ATV,C=TW"
+          "$BUILD_TOOLS/zipalign" -f -p 4 \
+            work/remote-atv-r4-unsigned.apk work/remote-atv-r4-aligned.apk
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks work/r4-debug.keystore --ks-key-alias remoteatv \
+            --ks-pass pass:android --key-pass pass:android \
+            --v1-signing-enabled true --v2-signing-enabled true \
+            --out work/Remote_ATV_5.0.5_R5.apk \
+            work/remote-atv-r4-aligned.apk
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs \
+            work/Remote_ATV_5.0.5_R5.apk
+          "$BUILD_TOOLS/zipalign" -c -v 4 work/Remote_ATV_5.0.5_R5.apk
+          sha256sum work/Remote_ATV_5.0.5_R5.apk
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-atv-r5-signed-apk
+          path: work/Remote_ATV_5.0.5_R5.apk
+          if-no-files-found: error
+          retention-days: 14
