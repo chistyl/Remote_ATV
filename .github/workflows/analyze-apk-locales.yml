@@ -137,6 +137,14 @@ jobs:
           cmp -s work/base-classes.dex work/candidate-classes.dex && echo "classes_dex_identical=yes" >> work/candidate-comparison.txt || echo "classes_dex_identical=no" >> work/candidate-comparison.txt
           unzip -p "$CAND" META-INF/MANIFEST.MF > work/candidate-manifest.txt 2>/dev/null || true
           echo "Candidate APK metadata:" >> work/candidate-comparison.txt
+          for item in baseline candidate; do
+            if [ "$item" = baseline ]; then apk="$BASE"; else apk="$CAND"; fi
+            unzip -p "$apk" lib/arm64-v8a/libapp.so | strings | grep -iE 'upgrader|UPDATE NOW|LATER|force_update_dialog_shown|optional_update_dialog_shown|userIgnoredVersion|update_dialog_app_version|tv_app_version|更新資訊|更新' > "work/${item}-update-strings.txt" || true
+          done
+          echo "Baseline/candidate update-string counts:" >> work/candidate-comparison.txt
+          wc -l work/baseline-update-strings.txt work/candidate-update-strings.txt >> work/candidate-comparison.txt
+          echo "Candidate update strings compared with baseline:" >> work/candidate-comparison.txt
+          diff -u work/baseline-update-strings.txt work/candidate-update-strings.txt >> work/candidate-update-strings.diff || true
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -155,6 +163,6 @@ jobs:
             work/update-dialog-disassembly.txt
             work/apk-sha256.txt
             work/libapp-sha256.txt
-            work/candidate-comparison.txt
+            work/candidate-comparison.txt\n            work/baseline-update-strings.txt\n            work/candidate-update-strings.txt\n            work/candidate-update-strings.diff
           if-no-files-found: error
           retention-days: 14
