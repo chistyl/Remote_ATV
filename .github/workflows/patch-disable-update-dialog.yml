@@ -100,7 +100,7 @@ jobs:
           print("Original 5.0.5 libapp.so preserved byte-for-byte: PASS")
           PY
 
-      - name: Patch only the update-dialog dispatch
+      - name: Disable automatic update check, dialog, and four settings rows
         shell: bash
         run: |
           set -euo pipefail
@@ -112,6 +112,7 @@ jobs:
           out = Path("Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk")
           expected_lib = "a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875"
           patch_specs = [
+              (0x7505bc, "ba020094", "e00316aa", None, "disable automatic update check call"),
               (0x7505e8, "13000094", "e00316aa", None, "suppress update dialog dispatch"),
               (0x44cd78, "704b4091", "2e000014", 0x44ce30, "remove Share with friends row"),
               (0x44ceb0, "704b4091", "22000014", 0x44cf38, "remove Rate and Review row"),
@@ -161,19 +162,20 @@ jobs:
                       branch_target = va + (imm26 << 2)
                       if branch_target != expected_target:
                           raise SystemExit(f"{label}: branch target mismatch 0x{branch_target:x}")
-                  elif va == 0x7505e8:
+                  elif va in (0x7505bc, 0x7505e8):
                       word = struct.unpack("<I", old)[0]
                       imm26 = word & 0x03ffffff
                       if imm26 & (1 << 25):
                           imm26 -= 1 << 26
-                      if va + (imm26 << 2) != 0x750634:
-                          raise SystemExit("Unexpected original update-dialog BL target.")
+                      expected_call = 0x7510a4 if va == 0x7505bc else 0x750634
+                      if va + (imm26 << 2) != expected_call:
+                          raise SystemExit(f"Unexpected original updater BL target at 0x{va:x}.")
                   patched[off:off+4] = new
                   verified.append((va, off, new, label, expected_target))
 
               changed = [i for i, (a, b) in enumerate(zip(lib, patched)) if a != b]
-              if len(changed) != 20:
-                  raise SystemExit(f"Unexpected patch footprint: {len(changed)} changed bytes, expected 20.")
+              if len(changed) != 24:
+                  raise SystemExit(f"Unexpected patch footprint: {len(changed)} changed bytes, expected 24.")
               if sha(bytes(patched)) == sha(lib):
                   raise SystemExit("Patch did not change libapp.so.")
 
@@ -240,6 +242,7 @@ jobs:
                           return po+va-pv
                   raise AssertionError(f"missing executable VA 0x{va:x}")
               expected={
+                  0x7505bc:"e00316aa",
                   0x7505e8:"e00316aa",
                   0x44cd78:"2e000014",
                   0x44ceb0:"22000014",
