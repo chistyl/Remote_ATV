@@ -242,7 +242,9 @@ jobs:
             flutter-engine-version-scan.txt
             decoded/smali*/
             decoded/AndroidManifest.xml
+            work/libapp.so
             work/libapp-elf.txt
+            work/blutter-base/ida_script/addNames.py
             work/update-dialog-address-check.txt
             work/update-dialog-disassembly.txt
             work/apk-sha256.txt
