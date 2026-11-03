@@ -415,6 +415,7 @@ jobs:
             work/updater-call-sites.txt
             work/updater-pool-xrefs.txt
             work/updater-indirect-loads.txt
+            work/updater-register-xrefs.txt
             work/apk-sha256.txt
             work/libapp-sha256.txt
             work/candidate-comparison.txt
