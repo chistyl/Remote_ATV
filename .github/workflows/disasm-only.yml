@@ -1,0 +1,55 @@
+name: Remote ATV 5.0.5 focused AOT disassembly
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/disasm-only.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  disasm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install disassembly libraries
+        run: sudo apt-get update && sudo apt-get install -y python3-pyelftools python3-capstone
+      - name: Extract exact 5.0.5 AOT library
+        run: |
+          set -euo pipefail
+          mkdir -p work/lib work/diag
+          unzip -p "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" lib/arm64-v8a/libapp.so > work/lib/libapp.so
+          sha256sum work/lib/libapp.so > work/diag/sha256.txt
+      - name: Disassemble target functions and call sites
+        run: |
+          cat > work/diag/disassemble.py <<'PY'
+          from elftools.elf.elffile import ELFFile
+          from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+          from pathlib import Path
+          centers=[0x7505e8,0x750634,0x750228,0x752874,0x4ab5ac,0x4ab8d0,0x4ab96c,0x4aba08,0x4abd40,0x44ee94,0x44dff4,0x44d848,0x44d7d4,0x74bc08,0x74bc9c,0x74be34,0x435648]
+          md=Cs(CS_ARCH_ARM64,CS_MODE_ARM)
+          with Path("work/lib/libapp.so").open("rb") as f:
+              elf=ELFFile(f); segs=[s for s in elf.iter_segments() if s['p_type']=='PT_LOAD' and (int(s['p_flags'])&1)]
+              out=[]
+              for center in centers:
+                  seg=next((s for s in segs if int(s['p_vaddr'])<=center<int(s['p_vaddr'])+int(s['p_filesz'])),None)
+                  if seg is None:
+                      out.append(f"===== 0x{center:x}: not executable ====="); continue
+                  start=max(int(seg['p_vaddr']),center-0x100); end=min(int(seg['p_vaddr'])+int(seg['p_filesz']),center+0x180)
+                  off=int(seg['p_offset'])+start-int(seg['p_vaddr']); f.seek(off); data=f.read(end-start)
+                  out.append(f"===== 0x{center:x} =====")
+                  for i in md.disasm(data,start):
+                      out.append(f"{'>>>' if i.address==center else '   '} 0x{i.address:08x}: {i.mnemonic:8s} {i.op_str}")
+          Path("work/diag/disassembly.txt").write_text("\\n".join(out),encoding="utf-8")
+          PY
+          python3 work/diag/disassemble.py
+      - name: Upload exact AOT and disassembly
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-focused-disassembly
+          path: |
+            work/lib/libapp.so
+            work/diag/
+          retention-days: 14
