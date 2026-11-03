@@ -196,6 +196,20 @@ jobs:
                       va=seg[2]+s-seg[0]
                       out.write(f"file=0x{s:x} va=0x{va:x} length={e-s}\\n")
           PY
+      - name: Compare all printable Flutter strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          strings -a -t x work/base-libapp.so > work/baseline-all-strings.txt
+          strings -a -t x work/candidate-libapp.so > work/candidate-all-strings.txt
+          diff -u work/baseline-all-strings.txt work/candidate-all-strings.txt > work/all-strings.diff || true
+          {
+            echo "Baseline printable strings: $(wc -l < work/baseline-all-strings.txt)"
+            echo "Candidate printable strings: $(wc -l < work/candidate-all-strings.txt)"
+            echo "Changed printable string lines: $(grep -Ec '^[+-][^+-]' work/all-strings.diff || true)"
+            echo "Changed string diff preview:"
+            sed -n '1,240p' work/all-strings.diff
+          } > work/all-strings-summary.txt
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -221,5 +235,7 @@ jobs:
             work/baseline-update-string-offsets.txt
             work/candidate-update-string-offsets.txt
             work/flutter-binary-diff-map.txt
+            work/all-strings.diff
+            work/all-strings-summary.txt
           if-no-files-found: error
           retention-days: 14
