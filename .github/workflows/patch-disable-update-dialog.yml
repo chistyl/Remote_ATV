@@ -132,7 +132,7 @@ jobs:
               lib = zin.read(libname)
               if sha(lib) != expected_lib:
                   raise SystemExit("libapp.so SHA256 mismatch; refusing to patch an unknown AOT snapshot.")
-              if lib[:4] != b"\\x7fELF" or lib[4] != 2 or lib[5] != 1:
+              if lib[:4] != b"\x7fELF" or lib[4] != 2 or lib[5] != 1:
                   raise SystemExit("Unexpected libapp.so ELF format.")
 
               phoff = struct.unpack_from("<Q", lib, 32)[0]
