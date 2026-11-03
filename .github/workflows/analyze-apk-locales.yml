@@ -293,6 +293,40 @@ jobs:
             echo 'Updater object/class context:'
             grep -nE 'AnonymousClosure: \\(0x(4a8334|4aa3c8|4aa308|4aa034|752874|750228)\\)|upgrader.dialog.title|userIgnoredVersion|force_update_dialog_shown|optional_update_dialog_shown' work/blutter-base/pp.txt || true
           } >> work/updater-call-sites.txt
+      - name: Map Flutter updater object-pool references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import struct
+          from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+          data=open("work/libapp.so","rb").read()
+          phoff=struct.unpack_from("<Q",data,32)[0]
+          entsize,num=struct.unpack_from("<HH",data,54)
+          loads=[]
+          for i in range(num):
+              o=phoff+i*entsize
+              typ,flags=struct.unpack_from("<II",data,o)
+              po,pv,_,fs,_,_=struct.unpack_from("<QQQQQQ",data,o+8)
+              if typ==1 and flags&1: loads.append((pv,po,fs))
+          targets={0x718:"dialog_builder_pp_20718",0x720:"nested_dialog_callback_pp_20720",0x748:"dialog_callback_pp_20748",0x750:"dialog_callback_pp_20750",0x758:"dialog_callback_pp_20758",0x7d8:"ignored_version_string_pp_207d8"}
+          md=Cs(CS_ARCH_ARM64,CS_MODE_ARM)
+          with open("work/updater-pool-xrefs.txt","w") as out:
+              for va,off,size in loads:
+                  insns=list(md.disasm(data[off:off+size],va))
+                  for i,ins in enumerate(insns):
+                      if ins.mnemonic not in ("add","adrp") or "x27" not in ins.op_str:
+                          continue
+                      window=insns[i:i+8]
+                      for j,cur in enumerate(window[1:],1):
+                          if cur.mnemonic not in ("ldr","ldur"):
+                              continue
+                          for slot,label in targets.items():
+                              if f"#0x{slot:x}" in cur.op_str:
+                                  out.write(f"\\n=== {label} at 0x{ins.address:x} ===\\n")
+                                  for item in insns[max(0,i-4):min(len(insns),i+12)]:
+                                      out.write(f"0x{item.address:x}: {item.mnemonic} {item.op_str}\\n")
+          PY
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -312,6 +346,7 @@ jobs:
             work/update-dialog-address-check.txt
             work/update-dialog-disassembly.txt
             work/updater-call-sites.txt
+            work/updater-pool-xrefs.txt
             work/apk-sha256.txt
             work/libapp-sha256.txt
             work/candidate-comparison.txt
