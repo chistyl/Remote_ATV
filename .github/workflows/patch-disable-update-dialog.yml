@@ -117,7 +117,7 @@ jobs:
               (0x44cd78, "704b4091", "2e000014", 0x44ce30, "remove Share with friends row"),
               (0x44ceb0, "704b4091", "22000014", 0x44cf38, "remove Rate and Review row"),
               (0x44cfb8, "704b4091", "22000014", 0x44d040, "remove Feedback row"),
-              (0x44d25c, "704b4091", "45000014", 0x44d370, "remove Activate premium row"),
+              (0x44d1cc, "210d0054", "69000014", 0x44d370, "skip Activate premium row before construction"),
           ]
 
           def sha(b): return hashlib.sha256(b).hexdigest()
@@ -247,7 +247,7 @@ jobs:
                   0x44cd78:"2e000014",
                   0x44ceb0:"22000014",
                   0x44cfb8:"22000014",
-                  0x44d25c:"45000014",
+                  0x44d1cc:"69000014",
               }
               for va,hexbytes in expected.items():
                   off=off_for(va)
