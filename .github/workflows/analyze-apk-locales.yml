@@ -311,6 +311,7 @@ jobs:
             work/blutter-base/ida_script/addNames.py
             work/update-dialog-address-check.txt
             work/update-dialog-disassembly.txt
+            work/updater-call-sites.txt
             work/apk-sha256.txt
             work/libapp-sha256.txt
             work/candidate-comparison.txt
