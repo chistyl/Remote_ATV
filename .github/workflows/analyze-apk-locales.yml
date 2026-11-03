@@ -351,7 +351,7 @@ jobs:
                   insns=list(md.disasm(data[off:off+size],va))
                   for i,ins in enumerate(insns):
                       for slot,label in wanted.items():
-                          if ins.mnemonic in ("ldr","ldur") and re.search(rf"#0x{slot:x}\\]",ins.op_str):
+                          if ins.mnemonic in ("ldr","ldur") and re.search(rf"\\[x27,\\s*#(?:0x)?{slot:x}\\]",ins.op_str, re.I):
                               out.write(f"\\n=== {label} pool-offset=0x{slot:x} load=0x{ins.address:x} ===\\n")
                               for x in insns[max(0,i-6):min(len(insns),i+8)]:
                                   out.write(f"0x{x.address:x}: {x.mnemonic} {x.op_str}\\n")
