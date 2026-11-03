@@ -610,7 +610,9 @@ class _RemoteHomeState extends State<RemoteHome> {
     showModalBottomSheet(context: context, backgroundColor: const Color(0xFF202126), builder: (ctx) => SafeArea(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Text('Remote layout', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
       const SizedBox(height: 8),
+      // ignore: deprecated_member_use
       RadioListTile<String>(value: 'dpad', groupValue: remoteLayout, title: const Text('方向鍵操作'), subtitle: const Text('顯示完整方向鍵與確認按鈕。'), onChanged: (v) { setState(() => remoteLayout = v!); _saveUiSettings(); Navigator.pop(ctx); }),
+      // ignore: deprecated_member_use
       RadioListTile<String>(value: 'swipe', groupValue: remoteLayout, title: const Text('觸控板操作'), subtitle: const Text('滑動移動方向，點擊確認。'), onChanged: (v) { setState(() => remoteLayout = v!); _saveUiSettings(); Navigator.pop(ctx); }),
     ]))));
   }
