@@ -20,7 +20,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p work
-          apktool d -f "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" -o work/apk > work/apktool.log 2>&1
+          set +e
+          apktool d -f -r "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" -o work/apk > work/apktool.log 2>&1
+          echo "apktool exit=$?" >> work/apktool.log
+          set -e
           {
             echo "=== Manifest activities ==="
             grep -n -A14 -B3 'android.intent.action.MAIN\|android.intent.category.LAUNCHER' work/apk/AndroidManifest.xml || true
@@ -37,9 +40,11 @@ jobs:
             echo
             echo "=== Shared preference strings ==="
             grep -RniE 'FlutterSharedPreferences|flutter\.|getAll|setString' work/apk/smali* | head -100 || true
-          } > work/native-inspection.txt
-          cat work/native-inspection.txt
+          } > work/native-inspection.txt || true
+          cat work/apktool.log
+          cat work/native-inspection.txt || true
       - name: Upload native inspection
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Remote-ATV-5.0.5-native-inspection
