@@ -238,7 +238,7 @@ jobs:
         with:
           name: Remote-ATV-5.0.5-defaults-no-update-debug
           path: |
-            Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk
-            Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk
+            Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk
+            Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk
           if-no-files-found: error
           retention-days: 14
