@@ -1,8 +1,8 @@
-# Remote ATV V4.18
+# Remote ATV V5.0
 
 獨立 Flutter + Android Kotlin Android TV 遙控器專案。
 
-## V4.18 更新
+## V5.0 重製版本
 
 - GitHub Actions 新增獨立的「Prepare and verify real Gradle Wrapper」階段。
 - 在 `flutter pub get` 前，先使用 CI 實際安裝的 Flutter SDK 產生 Android Gradle Wrapper。
@@ -11,7 +11,12 @@
 - 建置報告新增 Wrapper preparation outcome，失敗時可判斷流程停在 Wrapper、套件解析或 APK 編譯階段。
 - 保留原有 Debug APK 與診斷 Artifact；只有 APK 建置及驗證成功才上傳 APK Artifact。
 - 不更動 Android TV Remote v2 配對、TLS、按鍵、IME、語音及重連協定。
-- 版本統一為 `4.18.0+49`（Android `versionCode 49`、`versionName 4.18.0`）。
+- 版本統一為 `5.0.0+50`（Android `versionCode 50`、`versionName 5.0.0`）。
+- 預設導航為 D-pad 方向鍵，保留觸控板模式。
+- 舊版 `tap` 設定相容轉換為 D-pad，既有 `swipe` 設定予以保留。
+- 快速存取預設為 None。
+- 已移除分享、評分、意見回饋及 Premium 推廣選單項目（原始碼設定頁未包含這些項目）。
+- 此重製分支未包含自動更新檢查及更新提示流程。
 
 ## GitHub Actions 建置
 
@@ -42,4 +47,4 @@ APK 輸出：`build/app/outputs/flutter-apk/app-debug.apk`。
 
 ## 驗證限制
 
-本版可在目前環境執行 Python 靜態檢查、Wrapper 模擬測試及 Shell 語法檢查。**目前工作環境沒有 Flutter SDK，也沒有 Gradle Wrapper，因此沒有執行真正 Gradle Wrapper 下載、Gradle Sync、`flutter analyze`、APK 編譯或實體電視測試。** GitHub Actions 的實際編譯結果仍須在 repository 執行後確認；目前也尚未將本版推送至 GitHub。
+CI 將執行版本一致性檢查、Android Gradle Wrapper 準備、Flutter 套件解析、Dart 靜態分析、APK 編譯與 APK 檢查。CI 成功仍不等於 Android 9 電視實機通過；配對、TLS、按鍵及焦點操作須在實機確認。

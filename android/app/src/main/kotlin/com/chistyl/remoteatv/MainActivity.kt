@@ -193,14 +193,17 @@ class MainActivity : FlutterActivity() {
                         val prefs = getSharedPreferences("remote_atv", Context.MODE_PRIVATE)
                         result.success(mapOf("haptic" to prefs.getBoolean("haptic_feedback", true),
                             "naturalHold" to prefs.getBoolean("natural_hold", true),
-                            "remoteLayout" to prefs.getString("remote_layout", "tap")))
+                            "remoteLayout" to prefs.getString("remote_layout", "dpad"),
+                            "quickAccess" to prefs.getString("quick_access", "none")))
                     }
                     "setUiSettings" -> {
                         val prefs = getSharedPreferences("remote_atv", Context.MODE_PRIVATE)
                         val edit = prefs.edit()
                         call.argument<Boolean>("haptic")?.let { edit.putBoolean("haptic_feedback", it) }
                         call.argument<Boolean>("naturalHold")?.let { edit.putBoolean("natural_hold", it) }
-                        call.argument<String>("remoteLayout")?.let { edit.putString("remote_layout", it) }
+                        call.argument<String>("remoteLayout")?.let { edit.putString("remote_layout", if (it == "swipe") "swipe" else "dpad") }
+                        // Quick access remains intentionally empty in this release.
+                        edit.putString("quick_access", "none")
                         edit.apply(); result.success(true)
                     }
                     "renamePairedDevice" -> {
@@ -594,8 +597,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun sendRemoteKey(keyCode: Int, direction: Int) {
-        if (keyCode !in 0.. KEYCODE_MAX) throw IllegalArgumentException("按鍵代碼超出有效範圍")
+    private fun sendRemoteKey(keyCode: Int, direction: Int) {        if (keyCode !in 0.. KEYCODE_MAX) throw IllegalArgumentException("按鍵代碼超出有效範圍")
         if (direction !in 1..3) throw IllegalArgumentException("按鍵事件方向無效")
         val ssl = remoteSocket ?: throw IllegalStateException("尚未連接電視，請先連線")
         if (ssl.isClosed || !ssl.isConnected) throw IllegalStateException("遙控連線已中斷，請重新連線")
@@ -995,7 +997,6 @@ class MainActivity : FlutterActivity() {
         })
         return SSLContext.getInstance("TLSv1.2").apply { init(kmf.keyManagers, trustAll, SecureRandom()) }
     }
-
     private fun getClientCertificate(): X509Certificate {
         val store = loadClientIdentityStore(createIfMissing = false)
             ?: throw IllegalStateException("手機安全憑證尚未建立，請重新開始配對")

@@ -2,12 +2,13 @@ name: Android APK Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, rebuild/remote-atv-5 ]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: android-apk-${{ github.workflow }}-${{ github.ref }}
@@ -163,6 +164,7 @@ jobs:
           retention-days: 14
 
   patch-target-505:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: Patch original Remote ATV 5.0.5 update dialog
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -275,5 +277,50 @@ jobs:
           path: |
             Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk
             Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  sign-existing-r4:
+    if: github.ref == 'refs/heads/rebuild/remote-atv-5' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    name: Re-sign R4 APK with Android v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Install Android Build Tools
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort | tail -n1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "build-tools;35.0.0"
+
+      - name: Download exact R4 build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 41596270210 --repo "${GITHUB_REPOSITORY}" --name remote-atv-debug-apk --dir input
+          APK="$(find input -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          mkdir -p work
+          cp "$APK" work/Remote_ATV_R4_unsigned.apk
+
+      - name: Align, sign and verify v1/v2
+        run: |
+          set -euo pipefail
+          BT="${ANDROID_HOME}/build-tools/35.0.0"
+          keytool -genkeypair -keystore work/r4-debug.keystore -storepass android -keypass android -alias remoteatv -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Debug,O=Remote ATV,C=TW"
+          "$BT/zipalign" -f -p 4 work/Remote_ATV_R4_unsigned.apk work/Remote_ATV_R4_aligned.apk
+          "$BT/apksigner" sign --ks work/r4-debug.keystore --ks-key-alias remoteatv --ks-pass pass:android --key-pass pass:android --v1-signing-enabled true --v2-signing-enabled true --out work/Remote_ATV_5.0.5_R5.apk work/Remote_ATV_R4_aligned.apk
+          "$BT/apksigner" verify --verbose --print-certs work/Remote_ATV_5.0.5_R5.apk
+          "$BT/zipalign" -c -v 4 work/Remote_ATV_5.0.5_R5.apk
+          sha256sum work/Remote_ATV_5.0.5_R5.apk
+
+      - name: Upload signed R5 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-atv-r5-signed-apk
+          path: work/Remote_ATV_5.0.5_R5.apk
           if-no-files-found: error
           retention-days: 14
