@@ -111,9 +111,13 @@ jobs:
           src = Path("Remote_ATV_5.0.5_預設值修正_基礎版.apk")
           out = Path("Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk")
           expected_lib = "a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875"
-          va = 0x7505e8
-          old = bytes.fromhex("13000094")  # BL 0x750634 (update-dialog decision/presentation)
-          new = bytes.fromhex("e00316aa")  # mov x0, x22 (Dart null); next cmp branches around dialog handling
+          patch_specs = [
+              (0x7505e8, "13000094", "e00316aa", None, "suppress update dialog dispatch"),
+              (0x44cd78, "704b4091", "2e000014", 0x44ce30, "remove Share with friends row"),
+              (0x44ceb0, "704b4091", "22000014", 0x44cf38, "remove Rate and Review row"),
+              (0x44cfb8, "704b4091", "22000014", 0x44d040, "remove Feedback row"),
+              (0x44d25c, "704b4091", "4c000014", 0x44d38c, "remove Activate premium row"),
+          ]
 
           def sha(b): return hashlib.sha256(b).hexdigest()
           if not src.is_file():
@@ -127,34 +131,49 @@ jobs:
               lib = zin.read(libname)
               if sha(lib) != expected_lib:
                   raise SystemExit("libapp.so SHA256 mismatch; refusing to patch an unknown AOT snapshot.")
-
-              if lib[:4] != b"\x7fELF" or lib[4] != 2 or lib[5] != 1:
+              if lib[:4] != b"\\x7fELF" or lib[4] != 2 or lib[5] != 1:
                   raise SystemExit("Unexpected libapp.so ELF format.")
+
               phoff = struct.unpack_from("<Q", lib, 32)[0]
               phentsize, phnum = struct.unpack_from("<HH", lib, 54)
-              fileoff = None
-              for i in range(phnum):
-                  p = phoff + i * phentsize
-                  p_type, p_flags, p_offset, p_vaddr, _, p_filesz, _, _ = struct.unpack_from("<IIQQQQQQ", lib, p)
-                  if p_type == 1 and (p_flags & 1) and p_vaddr <= va and va + 4 <= p_vaddr + p_filesz:
-                      fileoff = p_offset + va - p_vaddr
-                      break
-              if fileoff is None:
-                  raise SystemExit("Target VA is not inside an executable PT_LOAD segment.")
-              if lib[fileoff:fileoff+4] != old:
-                  raise SystemExit(f"Unexpected instruction at VA 0x{va:x}: {lib[fileoff:fileoff+4].hex()}")
-
-              word = struct.unpack("<I", old)[0]
-              imm26 = word & 0x03ffffff
-              if imm26 & (1 << 25): imm26 -= 1 << 26
-              target = va + (imm26 << 2)
-              if target != 0x750634:
-                  raise SystemExit(f"Unexpected BL target: 0x{target:x}")
+              def va_to_fileoff(va):
+                  for i in range(phnum):
+                      p = phoff + i * phentsize
+                      p_type, p_flags, p_offset, p_vaddr, _, p_filesz, _, _ = struct.unpack_from("<IIQQQQQQ", lib, p)
+                      if p_type == 1 and (p_flags & 1) and p_vaddr <= va and va + 4 <= p_vaddr + p_filesz:
+                          return p_offset + va - p_vaddr
+                  raise SystemExit(f"VA 0x{va:x} is not inside an executable PT_LOAD segment.")
 
               patched = bytearray(lib)
-              patched[fileoff:fileoff+4] = new
-              if sum(a != b for a, b in zip(lib, patched)) != 4:
-                  raise SystemExit("Unexpected patch footprint.")
+              verified = []
+              for va, old_hex, new_hex, expected_target, label in patch_specs:
+                  off = va_to_fileoff(va)
+                  old = bytes.fromhex(old_hex)
+                  new = bytes.fromhex(new_hex)
+                  actual = bytes(patched[off:off+4])
+                  if actual != old:
+                      raise SystemExit(f"{label}: unexpected instruction at VA 0x{va:x}: {actual.hex()} != {old.hex()}")
+                  if expected_target is not None:
+                      word = struct.unpack("<I", new)[0]
+                      imm26 = word & 0x03ffffff
+                      if imm26 & (1 << 25):
+                          imm26 -= 1 << 26
+                      branch_target = va + (imm26 << 2)
+                      if branch_target != expected_target:
+                          raise SystemExit(f"{label}: branch target mismatch 0x{branch_target:x}")
+                  elif va == 0x7505e8:
+                      word = struct.unpack("<I", old)[0]
+                      imm26 = word & 0x03ffffff
+                      if imm26 & (1 << 25):
+                          imm26 -= 1 << 26
+                      if va + (imm26 << 2) != 0x750634:
+                          raise SystemExit("Unexpected original update-dialog BL target.")
+                  patched[off:off+4] = new
+                  verified.append((va, off, new, label, expected_target))
+
+              changed = [i for i, (a, b) in enumerate(zip(lib, patched)) if a != b]
+              if len(changed) != 20:
+                  raise SystemExit(f"Unexpected patch footprint: {len(changed)} changed bytes, expected 20.")
               if sha(bytes(patched)) == sha(lib):
                   raise SystemExit("Patch did not change libapp.so.")
 
@@ -168,16 +187,21 @@ jobs:
               if bad:
                   raise SystemExit(f"ZIP integrity failure: {bad}")
               checklib = check.read("lib/arm64-v8a/libapp.so")
-              if checklib[fileoff:fileoff+4] != new:
-                  raise SystemExit("Patched instruction verification failed.")
+              for va, off, new, label, expected_target in verified:
+                  if checklib[off:off+4] != new:
+                      raise SystemExit(f"Post-ZIP verification failed: {label}")
               for name in names:
-                  if name != "lib/arm64-v8a/libapp.so" and check.read(name) != zipfile.ZipFile(src).read(name):
-                      raise SystemExit(f"Unexpected modified APK entry: {name}")
+                  if name != "lib/arm64-v8a/libapp.so":
+                      with zipfile.ZipFile(src, "r") as original:
+                          if check.read(name) != original.read(name):
+                              raise SystemExit(f"Unexpected modified APK entry: {name}")
+
           print(f"APK input SHA256: {sha(apk_bytes)}")
           print(f"Original libapp SHA256: {sha(lib)}")
           print(f"Patched libapp SHA256: {sha(bytes(patched))}")
-          print(f"Patch VA: 0x{va:x}; ELF file offset: 0x{fileoff:x}")
-          print(f"Instruction: {old.hex()} (BL 0x750634) -> {new.hex()} (mov x0, x22)")
+          for va, off, new, label, expected_target in verified:
+              suffix = f" -> branch 0x{expected_target:x}" if expected_target is not None else " -> null (skip update dialog)"
+              print(f"PATCH PASS: 0x{va:x} (file 0x{off:x}) {label}{suffix}; bytes={new.hex()}")
           print("Only lib/arm64-v8a/libapp.so changed; all other APK entries verified identical.")
           PY
 
