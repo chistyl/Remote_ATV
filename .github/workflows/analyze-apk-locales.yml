@@ -125,6 +125,8 @@ jobs:
               ("upgrader_builder_and_dialog", 0x4a8334, 0x4aa520),
               ("update_prompt_decision_helpers", 0x4970fc, 0x497300),
               ("upgrader_state_helpers", 0x4a7c60, 0x4a7e20),
+              ("version_compare_helper_exact", 0x4a8124, 0x4a8334),
+              ("dialog_builder_complete", 0x4a8334, 0x4aa520),
               ("version_compare_and_update_state", 0x4a7c60, 0x4a8334),
               ("update_decision_full_method", 0x75212c, 0x752348),
               ("upgrader_dialog_state", 0x4a8124, 0x4a81bc),
@@ -327,6 +329,33 @@ jobs:
                                   for item in insns[max(0,i-4):min(len(insns),i+12)]:
                                       out.write(f"0x{item.address:x}: {item.mnemonic} {item.op_str}\\n")
           PY
+      - name: Scan indirect updater closure loads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import struct,re
+          from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+          data=open("work/libapp.so","rb").read()
+          phoff=struct.unpack_from("<Q",data,32)[0]
+          entsize,num=struct.unpack_from("<HH",data,54)
+          loads=[]
+          for i in range(num):
+              o=phoff+i*entsize; typ,flags=struct.unpack_from("<II",data,o)
+              po,pv,_,fs,_,_=struct.unpack_from("<QQQQQQ",data,o+8)
+              if typ==1 and flags&1: loads.append((pv,po,fs))
+          wanted={0x718:"dialog_builder",0x720:"nested_dialog_closure",0x748:"callback_later",0x750:"callback_update",0x758:"callback_dismiss"}
+          md=Cs(CS_ARCH_ARM64,CS_MODE_ARM)
+          with open("work/updater-indirect-loads.txt","w") as out:
+              for va,off,size in loads:
+                  insns=list(md.disasm(data[off:off+size],va))
+                  for i,ins in enumerate(insns):
+                      for slot,label in wanted.items():
+                          if ins.mnemonic in ("ldr","ldur") and re.search(rf"#0x{slot:x}\\]",ins.op_str):
+                              out.write(f"\\n=== {label} pool-offset=0x{slot:x} load=0x{ins.address:x} ===\\n")
+                              for x in insns[max(0,i-6):min(len(insns),i+8)]:
+                                  out.write(f"0x{x.address:x}: {x.mnemonic} {x.op_str}\\n")
+          PY
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -347,6 +376,7 @@ jobs:
             work/update-dialog-disassembly.txt
             work/updater-call-sites.txt
             work/updater-pool-xrefs.txt
+            work/updater-indirect-loads.txt
             work/apk-sha256.txt
             work/libapp-sha256.txt
             work/candidate-comparison.txt
