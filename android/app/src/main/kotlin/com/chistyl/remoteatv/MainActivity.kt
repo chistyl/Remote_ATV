@@ -194,11 +194,10 @@ class MainActivity : FlutterActivity() {
                         result.success(mapOf("haptic" to prefs.getBoolean("haptic_feedback", true),
                             "naturalHold" to prefs.getBoolean("natural_hold", true),
                             "remoteLayout" to prefs.getString("remote_layout", "dpad"),
-                            "quickAccess" to prefs.getString("quick_access", "none"))
+                            "quickAccess" to prefs.getString("quick_access", "none")))
                     }
                     "setUiSettings" -> {
-                        val prefs = getSharedPreferences("remote_atv", Context.MODE_PRIVATE)
-                        val edit = prefs.edit()
+                        val prefs = getSharedPreferences("remote_atv", Context.MODE_PRIVATE)                        val edit = prefs.edit()
                         call.argument<Boolean>("haptic")?.let { edit.putBoolean("haptic_feedback", it) }
                         call.argument<Boolean>("naturalHold")?.let { edit.putBoolean("natural_hold", it) }
                         call.argument<String>("remoteLayout")?.let { edit.putString("remote_layout", if (it == "swipe") "swipe" else "dpad") }
@@ -397,8 +396,7 @@ class MainActivity : FlutterActivity() {
                 digest.update(bigIntegerBytes(serverRsa.modulus))
                 digest.update(byteArrayOf(0))
                 digest.update(bigIntegerBytes(serverRsa.publicExponent))
-                digest.update(hexToBytes(pin.substring(2)))
-                val secret = digest.digest()
+                digest.update(hexToBytes(pin.substring(2)))                val secret = digest.digest()
                 if ((secret[0].toInt() and 0xff) != pin.substring(0, 2).toInt(16)) {
                     throw SecurityException("配對碼驗證失敗，請確認電視上的 6 位數配對碼")
                 }
@@ -597,8 +595,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun sendRemoteKey(keyCode: Int, direction: Int) {
-        if (keyCode !in 0.. KEYCODE_MAX) throw IllegalArgumentException("按鍵代碼超出有效範圍")
+    private fun sendRemoteKey(keyCode: Int, direction: Int) {        if (keyCode !in 0.. KEYCODE_MAX) throw IllegalArgumentException("按鍵代碼超出有效範圍")
         if (direction !in 1..3) throw IllegalArgumentException("按鍵事件方向無效")
         val ssl = remoteSocket ?: throw IllegalStateException("尚未連接電視，請先連線")
         if (ssl.isClosed || !ssl.isConnected) throw IllegalStateException("遙控連線已中斷，請重新連線")
@@ -797,8 +794,7 @@ class MainActivity : FlutterActivity() {
     private fun remoteConfigureMessage(features: Int): ByteArray {
         val info = ByteArrayOutputStream().apply {
             write(lengthDelimited(4, "1".toByteArray()))
-            write(varintField(3, 1))
-            write(lengthDelimited(5, "atvremote".toByteArray()))
+            write(varintField(3, 1))            write(lengthDelimited(5, "atvremote".toByteArray()))
             write(lengthDelimited(6, "1.7.0".toByteArray()))
         }.toByteArray()
         val config = ByteArrayOutputStream().apply { write(varintField(1, features)); write(lengthDelimited(2, info)) }.toByteArray()
@@ -998,7 +994,6 @@ class MainActivity : FlutterActivity() {
         })
         return SSLContext.getInstance("TLSv1.2").apply { init(kmf.keyManagers, trustAll, SecureRandom()) }
     }
-
     private fun getClientCertificate(): X509Certificate {
         val store = loadClientIdentityStore(createIfMissing = false)
             ?: throw IllegalStateException("手機安全憑證尚未建立，請重新開始配對")
