@@ -197,7 +197,7 @@ jobs:
               libname="lib/arm64-v8a/libapp.so"
               lib=zin.read(libname)
               if sha(lib) != expected_lib: raise SystemExit("AOT snapshot SHA256 mismatch.")
-              if lib[:4] != b"\\x7fELF" or lib[4] != 2 or lib[5] != 1: raise SystemExit("Unexpected ELF format.")
+              if lib[:4] != bytes((127,69,76,70)) or lib[4] != 2 or lib[5] != 1: raise SystemExit("Unexpected ELF format.")
               phoff=struct.unpack_from("<Q",lib,32)[0]
               pe,pn=struct.unpack_from("<HH",lib,54)
               off=None
