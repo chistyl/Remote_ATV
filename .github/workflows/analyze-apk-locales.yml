@@ -125,6 +125,8 @@ jobs:
               ("upgrader_builder_and_dialog", 0x4a8334, 0x4aa520),
               ("update_prompt_decision_helpers", 0x4970fc, 0x497300),
               ("upgrader_state_helpers", 0x4a7c60, 0x4a7e20),
+              ("version_compare_and_update_state", 0x4a7c60, 0x4a8334),
+              ("update_decision_full_method", 0x75212c, 0x752348),
               ("upgrader_dialog_state", 0x4a8124, 0x4a81bc),
               ("upgrader_store_lookup", 0x74c17c, 0x74c500),
               ("upgrader_version_lookup", 0x752020, 0x752400),
