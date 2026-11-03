@@ -194,7 +194,7 @@ class MainActivity : FlutterActivity() {
                         result.success(mapOf("haptic" to prefs.getBoolean("haptic_feedback", true),
                             "naturalHold" to prefs.getBoolean("natural_hold", true),
                             "remoteLayout" to prefs.getString("remote_layout", "dpad"),
-                            "quickAccess" to prefs.getString("quick_access", "none")))
+                            "quickAccess" to prefs.getString("quick_access", "none"))
                     }
                     "setUiSettings" -> {
                         val prefs = getSharedPreferences("remote_atv", Context.MODE_PRIVATE)
@@ -202,8 +202,8 @@ class MainActivity : FlutterActivity() {
                         call.argument<Boolean>("haptic")?.let { edit.putBoolean("haptic_feedback", it) }
                         call.argument<Boolean>("naturalHold")?.let { edit.putBoolean("natural_hold", it) }
                         call.argument<String>("remoteLayout")?.let { edit.putString("remote_layout", if (it == "swipe") "swipe" else "dpad") }
-                        // Reserved for future shortcut tiles; the default is intentionally empty.
-                        call.argument<String>("quickAccess")?.let { edit.putString("quick_access", if (it == "none") "none" else "none") }
+                        // Quick access remains intentionally empty in this release.
+                        edit.putString("quick_access", "none")
                         edit.apply(); result.success(true)
                     }
                     "renamePairedDevice" -> {
