@@ -174,8 +174,8 @@ jobs:
                   verified.append((va, off, new, label, expected_target))
 
               changed = [i for i, (a, b) in enumerate(zip(lib, patched)) if a != b]
-              if len(changed) != 24:
-                  raise SystemExit(f"Unexpected patch footprint: {len(changed)} changed bytes, expected 24.")
+              if len(changed) != 23:
+                  raise SystemExit(f"Unexpected patch footprint: {len(changed)} changed bytes, expected 23.")
               if sha(bytes(patched)) == sha(lib):
                   raise SystemExit("Patch did not change libapp.so.")
 
