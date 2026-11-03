@@ -356,6 +356,44 @@ jobs:
                               for x in insns[max(0,i-6):min(len(insns),i+8)]:
                                   out.write(f"0x{x.address:x}: {x.mnemonic} {x.op_str}\\n")
           PY
+      - name: Trace updater pool base registers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import struct
+          from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+          data=open("work/libapp.so","rb").read()
+          phoff=struct.unpack_from("<Q",data,32)[0]
+          entsize,num=struct.unpack_from("<HH",data,54)
+          md=Cs(CS_ARCH_ARM64,CS_MODE_ARM)
+          slots={0x718:"dialog_builder",0x720:"nested_dialog_closure",0x748:"callback_later",0x750:"callback_update",0x758:"callback_dismiss",0x7d8:"ignored_version"}
+          with open("work/updater-register-xrefs.txt","w") as out:
+            for i in range(num):
+              o=phoff+i*entsize; typ,flags=struct.unpack_from("<II",data,o)
+              po,pv,_,fs,_,_=struct.unpack_from("<QQQQQQ",data,o+8)
+              if typ!=1 or not(flags&1): continue
+              insns=list(md.disasm(data[po:po+fs],pv)); regs={}
+              for ix,ins in enumerate(insns):
+                op=ins.op_str.replace(" ","")
+                # Dart AOT object-pool base is x27 + (0x20 << 12).
+                if ins.mnemonic=="add" and op.startswith(tuple(f"{r},x27,#0x20,lsl#12" for r in [f"x{k}" for k in range(31)])):
+                  dst=op.split(",",1)[0]; regs[dst]=True
+                elif ins.mnemonic in ("ldr","ldur"):
+                  parts=op.split(",")
+                  if len(parts)>=2 and parts[1].startswith("["):
+                    base=parts[1][1:].split("]")[0].split(",")[0]
+                    if base in regs:
+                      for slot,label in slots.items():
+                        if f"#0x{slot:x}" in parts[1]:
+                          out.write(f"\\n{label} slot=0x{slot:x} at=0x{ins.address:x}\\n")
+                          for q in insns[max(0,ix-8):min(len(insns),ix+12)]: out.write(f"0x{q.address:x}: {q.mnemonic} {q.op_str}\\n")
+                  # A load overwrites its destination register.
+                  if parts: regs.pop(parts[0],None)
+                elif ins.mnemonic in ("mov","adrp","adr","sub","add"):
+                  dst=op.split(",",1)[0]
+                  if ins.mnemonic!="add" or "x27" not in op: regs.pop(dst,None)
+          PY
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
