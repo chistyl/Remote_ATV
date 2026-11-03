@@ -232,9 +232,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n1 || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Android sdkmanager not found under $SDK_ROOT/cmdline-tools"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "build-tools;35.0.0"
+          BT="$SDK_ROOT/build-tools/35.0.0"
           test -x "$BT/zipalign"
           test -x "$BT/apksigner"
+          export PATH="$BT:$PATH"
           zipalign -f -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
           keytool -genkeypair -keystore test-debug.keystore -storepass android -alias remote-atv-test -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Test,O=Debug,C=TW"
           apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
