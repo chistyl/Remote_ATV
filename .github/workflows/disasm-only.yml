@@ -103,7 +103,7 @@ jobs:
                       for nxt in ins[idx+1:idx+4]:
                           if nxt.mnemonic!="ldr":
                               continue
-                          mm=re.fullmatch(r"[^,]+, \\["+re.escape(dest)+r", #0x([0-9a-fA-F]+)\\]",nxt.op_str)
+                          mm=re.fullmatch(r"[^,]+, \["+re.escape(dest)+r", #0x([0-9a-fA-F]+)\]",nxt.op_str)
                           if not mm:
                               continue
                           off=int(mm.group(1),16)
