@@ -45,6 +45,17 @@ jobs:
           echo "Update-related Android resource matches: $(wc -l < update-resource-scan.txt)"
           grep -RniE 'upgrader|force_update|optional_update|update_now|later_update|updateDialog|appUpdate|versionCheck|UPDATE NOW|LATER|check.?for.?updates|in_app_update|play.core.appupdate' decoded/smali* > update-smali-scan.txt || true
           echo "Update-related DEX matches: $(wc -l < update-smali-scan.txt)"
+          {
+            echo 'APK identity:'
+            grep -E 'versionCode|versionName|package=' decoded/apktool.yml decoded/AndroidManifest.xml | head -20 || true
+            echo 'Flutter engine / Dart version markers:'
+            find decoded/lib -name 'libflutter.so' -o -name 'libapp.so' | while read -r so; do
+              echo "--- $so ---"
+              file "$so"
+              readelf -n "$so" 2>/dev/null | grep -E 'Build ID|GNU' | head -5 || true
+              strings "$so" | grep -iE -m 30 'Dart VM version|Dart SDK version|Flutter [0-9]+\.|version [0-9]+\.[0-9]+\.[0-9]+|snapshot version' || true
+            done
+          } > flutter-engine-version-scan.txt
 
       - name: Package analysis output
         uses: actions/upload-artifact@v4
@@ -56,6 +67,7 @@ jobs:
             chinese-resource-lines.txt
             update-resource-scan.txt
             update-smali-scan.txt
+            flutter-engine-version-scan.txt
             decoded/smali*/
             decoded/AndroidManifest.xml
           if-no-files-found: error
