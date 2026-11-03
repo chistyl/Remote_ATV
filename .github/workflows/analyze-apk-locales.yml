@@ -69,7 +69,7 @@ jobs:
           python3 - <<'PY'
           import struct
           path = "work/libapp.so"
-          targets = [0x4a8334, 0x4aa3c8, 0x4aa308, 0x4aa034]
+          targets = [0x4a8334, 0x4aa3c8, 0x4aa308, 0x4aa034, 0x750448, 0x7510a4, 0x75125c, 0x751594, 0x4970fc, 0x4a7c60, 0x4a7cf4, 0x4a8124]
           data = open(path, "rb").read()
           if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
               raise SystemExit("Expected ELF64 little-endian libapp.so")
@@ -114,7 +114,14 @@ jobs:
               ("update_dialog_callback_2", 0x4aa308, 0x4aa418),
               ("update_dialog_callback_3", 0x4aa034, 0x4aa1b0),
               ("upgrader_init", 0x750228, 0x75039c),
-              ("upgrader_update_check", 0x75039c, 0x750600),
+              ("upgrader_update_check", 0x75039c, 0x750448),
+              ("upgrader_update_pipeline", 0x750448, 0x750700),
+              ("upgrader_version_comparison", 0x7510a4, 0x7512b0),
+              ("upgrader_update_decision", 0x75125c, 0x751594),
+              ("upgrader_dialog_dispatch", 0x751594, 0x751800),
+              ("update_prompt_decision_helpers", 0x4970fc, 0x497300),
+              ("upgrader_state_helpers", 0x4a7c60, 0x4a7e20),
+              ("upgrader_dialog_state", 0x4a8124, 0x4a81bc),
               ("upgrader_store_lookup", 0x74c17c, 0x74c500),
               ("upgrader_version_lookup", 0x752020, 0x752400),
           ]
