@@ -1,78 +1,91 @@
-name: Sign Remote ATV 5.0.5 APK
+name: Build Remote ATV 5.0.5 R3.2 Debug APK
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'input/*.apk'
+      - 'scripts/patch_remote_atv_r3_2.py'
       - '.github/workflows/sign-apk.yml'
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  sign:
+  build-sign:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check input APK
+      - name: Download verified R2 base artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-settings-restored-no-update-debug
+          path: base
+          run-id: 41584665746
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check base APK
         shell: bash
         run: |
           set -euo pipefail
-          APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
-          test -s "$APK" || { echo "::error::Missing $APK. Upload the modified 5.0.5 candidate APK to this path first."; exit 1; }
-          echo "APK_INPUT=$APK" >> "$GITHUB_ENV"
+          APK="base/Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版-unsigned.apk"
+          test -s "$APK"
+          mkdir -p work output
           sha256sum "$APK"
+          echo "BASE_APK=$APK" >> "$GITHUB_ENV"
+
+      - name: Patch 5.0.5 defaults and remove menu actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_remote_atv_r3_2.py "$BASE_APK" work/Remote_ATV_5.0.5_R3.2_unsigned.apk
+          unzip -t work/Remote_ATV_5.0.5_R3.2_unsigned.apk
 
       - name: Install Android Build Tools
         shell: bash
         run: |
           set -euo pipefail
-          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" || test -x "$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager"
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
           "$SDKMANAGER" --install "build-tools;35.0.0"
           test -x "$ANDROID_HOME/build-tools/35.0.0/zipalign"
           test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
-      - name: Remove old signatures and align APK
+      - name: Align and sign with Android apksigner V1 + V2
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p work output
-          cp "$APK_INPUT" work/input.apk
-          zip -q -d work/input.apk 'META-INF/MANIFEST.MF' 'META-INF/*.SF' 'META-INF/*.RSA' 'META-INF/*.DSA' 'META-INF/*.EC' || true
-          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 work/input.apk work/aligned.apk
-          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 work/aligned.apk
-
-      - name: Generate temporary signing key and sign with apksigner
-        shell: bash
-        run: |
-          set -euo pipefail
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/zipalign" -f -p 4 work/Remote_ATV_5.0.5_R3.2_unsigned.apk work/aligned.apk
+          "$BT/zipalign" -c -v 4 work/aligned.apk
           SIGN_PASS="$(openssl rand -hex 24)"
           keytool -genkeypair -v \
-            -keystore work/remote-atv-release.jks \
+            -keystore work/remote-atv-debug.jks \
             -storepass "$SIGN_PASS" \
             -keypass "$SIGN_PASS" \
             -alias remoteatv \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Remote ATV 5.0.5 Local Rebuild"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
-            --ks work/remote-atv-release.jks \
+            -dname "CN=Remote ATV 5.0.5 R3.2 Debug"
+          "$BT/apksigner" sign \
+            --ks work/remote-atv-debug.jks \
             --ks-key-alias remoteatv \
             --ks-pass "pass:$SIGN_PASS" \
             --key-pass "pass:$SIGN_PASS" \
-            --out output/Remote_ATV_5.0.5_signed.apk \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out output/Remote_ATV_5.0.5_R3.2_V1_V2_Debug.apk \
             work/aligned.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs output/Remote_ATV_5.0.5_signed.apk
-          unzip -t output/Remote_ATV_5.0.5_signed.apk
-          sha256sum output/Remote_ATV_5.0.5_signed.apk
+          "$BT/apksigner" verify --verbose --print-certs output/Remote_ATV_5.0.5_R3.2_V1_V2_Debug.apk
+          unzip -t output/Remote_ATV_5.0.5_R3.2_V1_V2_Debug.apk
+          sha256sum output/Remote_ATV_5.0.5_R3.2_V1_V2_Debug.apk
 
-      - name: Upload signed APK
+      - name: Upload verified APK
         uses: actions/upload-artifact@v4
         with:
-          name: Remote-ATV-5.0.5-signed
-          path: output/Remote_ATV_5.0.5_signed.apk
+          name: Remote-ATV-5.0.5-R3.2-V1-V2-Debug
+          path: output/Remote_ATV_5.0.5_R3.2_V1_V2_Debug.apk
           if-no-files-found: error
           retention-days: 14
