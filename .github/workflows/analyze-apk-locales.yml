@@ -394,6 +394,28 @@ jobs:
                   dst=op.split(",",1)[0]
                   if ins.mnemonic!="add" or "x27" not in op: regs.pop(dst,None)
           PY
+      - name: Extract updater pool slot loads without base-register assumptions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import struct,re
+          from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+          data=open("work/libapp.so","rb").read(); phoff=struct.unpack_from("<Q",data,32)[0]; entsize,num=struct.unpack_from("<HH",data,54)
+          slots={0x718:"dialog_builder",0x720:"nested_dialog_closure",0x748:"callback_later",0x750:"callback_update",0x758:"callback_dismiss",0x7d8:"ignored_version"}
+          md=Cs(CS_ARCH_ARM64,CS_MODE_ARM)
+          with open("work/updater-slot-loads.txt","w") as out:
+            for i in range(num):
+              o=phoff+i*entsize; typ,flags=struct.unpack_from("<II",data,o); po,pv,_,fs,_,_=struct.unpack_from("<QQQQQQ",data,o+8)
+              if typ!=1 or not(flags&1): continue
+              ins=list(md.disasm(data[po:po+fs],pv))
+              for ix,x in enumerate(ins):
+                if x.mnemonic not in ("ldr","ldur"): continue
+                for slot,name in slots.items():
+                  if re.search(rf"#0x{slot:x}(?:\\]|,)",x.op_str,re.I):
+                    out.write(f"\\n=== {name} slot=0x{slot:x} VA=0x{x.address:x} ===\\n")
+                    for q in ins[max(0,ix-10):min(len(ins),ix+12)]: out.write(f"0x{q.address:x}: {q.mnemonic} {q.op_str}\\n")
+          PY
       - name: Package analysis output
         uses: actions/upload-artifact@v4
         with:
