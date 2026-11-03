@@ -17,19 +17,19 @@ jobs:
       - name: Checkout exact APK source
         uses: actions/checkout@v4
 
-      - name: Install Blutter build dependencies
+      - name: Install Blutter and disassembly dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pyelftools python3-requests cmake ninja-build build-essential pkg-config libicu-dev libcapstone-dev
+          sudo apt-get install -y python3-pyelftools python3-requests python3-capstone cmake ninja-build build-essential pkg-config libicu-dev libcapstone-dev
 
       - name: Extract ARM64 Flutter libraries
         run: |
           set -euo pipefail
-          mkdir -p work/lib work/out
+          mkdir -p work/lib work/out work/diag
           APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
           unzip -p "$APK" lib/arm64-v8a/libapp.so > work/lib/libapp.so
           unzip -p "$APK" lib/arm64-v8a/libflutter.so > work/lib/libflutter.so
-          sha256sum work/lib/*.so
+          sha256sum work/lib/*.so | tee work/diag/library-sha256.txt
 
       - name: Build matching Dart runtime and analyze
         id: analyze
@@ -42,15 +42,50 @@ jobs:
           find work/out -maxdepth 5 -type f -printf '%p %s bytes\\n' 2>/dev/null | sort > work/out-files.txt
           grep -RniE 'Quick access|Remote layout|Share with friends|Rate and Review|Feedback|Activate premium|upgrader.dialog.title|tv_app_version|later_update_button_press|_updateUserSettingsData' work/out > work/ui-matches.txt 2>/dev/null || true
 
-      - name: Upload full Blutter diagnostics
+      - name: Disassemble update and settings candidate code regions
+        if: always()
+        run: |
+          set -euo pipefail
+          cat > work/diag/disassemble.py <<'PY'
+          from elftools.elf.elffile import ELFFile
+          from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
+          from pathlib import Path
+          path=Path("work/lib/libapp.so")
+          md=Cs(CS_ARCH_ARM64, CS_MODE_ARM)
+          centers=[0x7505e8,0x750634,0x750228,0x752874,0x4ab5ac,0x4ab8d0,0x4ab96c,0x4aba08,0x23676c]
+          with path.open("rb") as f:
+              elf=ELFFile(f)
+              segs=[s for s in elf.iter_segments() if s['p_type']=='PT_LOAD' and (int(s['p_flags'])&1)]
+              out=[]
+              for center in centers:
+                  seg=next((s for s in segs if int(s['p_vaddr'])<=center<int(s['p_vaddr'])+int(s['p_filesz'])),None)
+                  if seg is None:
+                      out.append(f"===== VA 0x{center:x}: NOT IN EXECUTABLE LOAD SEGMENT =====")
+                      continue
+                  start=max(int(seg['p_vaddr']),center-0x100)
+                  end=min(int(seg['p_vaddr'])+int(seg['p_filesz']),center+0x180)
+                  off=int(seg['p_offset'])+start-int(seg['p_vaddr'])
+                  f.seek(off); data=f.read(end-start)
+                  out.append(f"===== VA 0x{center:x} (file offset 0x{off+center-start:x}) =====")
+                  for ins in md.disasm(data,start):
+                      mark=" >>>" if ins.address==center else "    "
+                      out.append(f"{mark} 0x{ins.address:08x}: {ins.mnemonic:8s} {ins.op_str}")
+              Path("work/diag/target-disassembly.txt").write_text("\\n".join(out),encoding="utf-8")
+          PY
+          python3 work/diag/disassemble.py
+          cat work/diag/target-disassembly.txt
+
+      - name: Upload full Blutter and disassembly diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Remote-ATV-5.0.5-Blutter-analysis
           path: |
             work/blutter.log
+            work/lib/libapp.so
             work/out/
             work/out-files.txt
             work/ui-matches.txt
+            work/diag/
           if-no-files-found: warn
           retention-days: 14
