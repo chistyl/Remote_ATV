@@ -43,6 +43,17 @@ jobs:
                   for i in md.disasm(data,start):
                       out.append(f"{'>>>' if i.address==center else '   '} 0x{i.address:08x}: {i.mnemonic:8s} {i.op_str}")
           Path("work/diag/disassembly.txt").write_text("\\n".join(out),encoding="utf-8")
+          # Dump the full suspected settings/menu builder function range.
+          start,end=0x43b6fc,0x43dac8
+          seg=next((s for s in segs if int(s['p_vaddr'])<=start and end<=int(s['p_vaddr'])+int(s['p_filesz'])),None)
+          if seg is None:
+              raise SystemExit("Menu builder range is outside executable PT_LOAD.")
+          off=int(seg['p_offset'])+start-int(seg['p_vaddr'])
+          f.seek(off); data=f.read(end-start)
+          lines=[f"===== suspected menu builder 0x{start:x}-0x{end:x} ====="]
+          for i in md.disasm(data,start):
+              lines.append(f"0x{i.address:08x}: {i.mnemonic:8s} {i.op_str}")
+          Path("work/diag/menu-builder-range.txt").write_text("\\n".join(lines),encoding="utf-8")
           PY
           python3 work/diag/disassemble.py
       - name: Upload exact AOT and disassembly
