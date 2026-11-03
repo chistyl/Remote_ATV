@@ -163,6 +163,7 @@ jobs:
           retention-days: 14
 
   patch-target-505:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: Patch original Remote ATV 5.0.5 update dialog
     runs-on: ubuntu-latest
     timeout-minutes: 20
