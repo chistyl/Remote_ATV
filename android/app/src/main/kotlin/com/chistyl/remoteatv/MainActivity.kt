@@ -796,7 +796,8 @@ class MainActivity : FlutterActivity() {
     private fun remoteConfigureMessage(features: Int): ByteArray {
         val info = ByteArrayOutputStream().apply {
             write(lengthDelimited(4, "1".toByteArray()))
-            write(varintField(3, 1))            write(lengthDelimited(5, "atvremote".toByteArray()))
+            write(varintField(3, 1))
+            write(lengthDelimited(5, "atvremote".toByteArray()))
             write(lengthDelimited(6, "1.7.0".toByteArray()))
         }.toByteArray()
         val config = ByteArrayOutputStream().apply { write(varintField(1, features)); write(lengthDelimited(2, info)) }.toByteArray()
