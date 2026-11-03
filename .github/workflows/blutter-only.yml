@@ -1,0 +1,56 @@
+name: Blutter-only analysis for Remote ATV 5.0.5
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/blutter-only.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  blutter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact APK source
+        uses: actions/checkout@v4
+
+      - name: Install Blutter build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pyelftools python3-requests cmake ninja-build build-essential pkg-config libicu-dev libcapstone-dev
+
+      - name: Extract ARM64 Flutter libraries
+        run: |
+          set -euo pipefail
+          mkdir -p work/lib work/out
+          APK="input/Remote_ATV_5.0.5_繁體中文_候選版.apk"
+          unzip -p "$APK" lib/arm64-v8a/libapp.so > work/lib/libapp.so
+          unzip -p "$APK" lib/arm64-v8a/libflutter.so > work/lib/libflutter.so
+          sha256sum work/lib/*.so
+
+      - name: Build matching Dart runtime and analyze
+        id: analyze
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          git clone --depth 1 https://github.com/worawit/blutter.git work/blutter
+          python3 work/blutter/blutter.py work/lib work/out > work/blutter.log 2>&1
+          echo "Blutter exit=$?" >> work/blutter.log
+          find work/out -maxdepth 5 -type f -printf '%p %s bytes\\n' 2>/dev/null | sort > work/out-files.txt
+          grep -RniE 'Quick access|Remote layout|Share with friends|Rate and Review|Feedback|Activate premium|upgrader.dialog.title|tv_app_version|later_update_button_press|_updateUserSettingsData' work/out > work/ui-matches.txt 2>/dev/null || true
+
+      - name: Upload full Blutter diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remote-ATV-5.0.5-Blutter-analysis
+          path: |
+            work/blutter.log
+            work/out/
+            work/out-files.txt
+            work/ui-matches.txt
+          if-no-files-found: warn
+          retention-days: 14
