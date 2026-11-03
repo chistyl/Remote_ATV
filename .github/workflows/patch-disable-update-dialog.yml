@@ -22,6 +22,84 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Patch first-install remote defaults in Android startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y apktool
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          src=Path("input/Remote_ATV_5.0.5_繁體中文_候選版.apk")
+          expected="8a7a682daf4ea69641d28d800b0a521b8273b59a98e36319482b1013a87a30ef"
+          if hashlib.sha256(src.read_bytes()).hexdigest()!=expected:
+              raise SystemExit("Exact 5.0.5 source APK SHA256 mismatch.")
+          PY
+          apktool d -f -r "input/Remote_ATV_5.0.5_繁體中文_候選版.apk" -o work/apk
+          MAIN="work/apk/smali_classes3/tech/simha/androidtvremote/MainActivity.smali"
+          test -f "$MAIN"
+          grep -q 'FlutterSharedPreferences' work/apk/smali_classes2/a6/a.smali
+          grep -q 'const-string.*flutter\.' work/apk/smali_classes2/a6/a.smali
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("work/apk/smali_classes3/tech/simha/androidtvremote/MainActivity.smali")
+          s=p.read_text()
+          if "onCreate(Landroid/os/Bundle;)V" in s:
+              raise SystemExit("MainActivity already overrides onCreate; refusing to overwrite unknown startup logic.")
+          method="""
+
+          .method protected onCreate(Landroid/os/Bundle;)V
+              .locals 4
+
+              const-string v0, "FlutterSharedPreferences"
+              const/4 v1, 0x0
+              invoke-virtual {p0, v0, v1}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
+              move-result-object v0
+
+              invoke-interface {v0}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
+              move-result-object v1
+
+              const-string v2, "flutter.navigation_choice"
+              invoke-interface {v0, v2}, Landroid/content/SharedPreferences;->contains(Ljava/lang/String;)Z
+              move-result v3
+              if-nez v3, :cond_navigation_exists
+              const-string v3, "dpad"
+              invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;
+              move-result-object v1
+              :cond_navigation_exists
+
+              const-string v2, "flutter.quick_access_choice"
+              invoke-interface {v0, v2}, Landroid/content/SharedPreferences;->contains(Ljava/lang/String;)Z
+              move-result v3
+              if-nez v3, :cond_quick_access_exists
+              const-string v3, "none"
+              invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;
+              move-result-object v1
+              :cond_quick_access_exists
+
+              invoke-interface {v1}, Landroid/content/SharedPreferences$Editor;->apply()V
+              invoke-super {p0, p1}, Lio/flutter/embedding/android/d;->onCreate(Landroid/os/Bundle;)V
+              return-void
+          .end method
+          """
+          p.write_text(s+method)
+          print("Injected first-install-only SharedPreferences defaults: navigation_choice=dpad, quick_access_choice=none")
+          PY
+          apktool b work/apk -o "Remote_ATV_5.0.5_預設值修正_基礎版.apk"
+          python3 - <<'PY'
+          import hashlib,zipfile
+          from pathlib import Path
+          apk=Path("Remote_ATV_5.0.5_預設值修正_基礎版.apk")
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None
+              lib=z.read("lib/arm64-v8a/libapp.so")
+              assert hashlib.sha256(lib).hexdigest()=="a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875"
+              assert "classes3.dex" in z.namelist()
+          print("Rebuilt base APK ZIP integrity: PASS")
+          print("Original 5.0.5 libapp.so preserved byte-for-byte: PASS")
+          PY
+
       - name: Patch only the update-dialog dispatch
         shell: bash
         run: |
@@ -30,9 +108,8 @@ jobs:
           import hashlib, os, struct, zipfile
           from pathlib import Path
 
-          src = Path("input/Remote_ATV_5.0.5_繁體中文_候選版.apk")
-          out = Path("Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk")
-          expected_apk = "8a7a682daf4ea69641d28d800b0a521b8273b59a98e36319482b1013a87a30ef"
+          src = Path("Remote_ATV_5.0.5_預設值修正_基礎版.apk")
+          out = Path("Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk")
           expected_lib = "a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875"
           va = 0x7505e8
           old = bytes.fromhex("13000094")  # BL 0x750634 (update-dialog decision/presentation)
@@ -42,9 +119,6 @@ jobs:
           if not src.is_file():
               raise SystemExit(f"Missing exact target APK: {src}")
           apk_bytes = src.read_bytes()
-          if sha(apk_bytes) != expected_apk:
-              raise SystemExit("Input APK SHA256 mismatch; refusing to patch an unverified build.")
-
           with zipfile.ZipFile(src, "r") as zin:
               names = zin.namelist()
               libname = "lib/arm64-v8a/libapp.so"
@@ -114,9 +188,9 @@ jobs:
           BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           test -x "$BT/zipalign"
           test -x "$BT/apksigner"
-          zipalign -f -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
+          zipalign -f -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
           keytool -genkeypair -v -keystore test-debug.keystore -storepass android -alias remote-atv-test -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Test,O=Debug,C=TW"
-          apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
+          apksigner sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk" "Remote_ATV_5.0.5_停用更新資訊提示_除錯版-aligned.apk"
           apksigner verify --verbose --print-certs "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
           zipalign -c -p 4 "Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk"
 
@@ -150,7 +224,7 @@ jobs:
       - name: Upload patched debug APK and report
         uses: actions/upload-artifact@v4
         with:
-          name: Remote-ATV-5.0.5-no-update-dialog-debug
+          name: Remote-ATV-5.0.5-defaults-no-update-debug
           path: |
             Remote_ATV_5.0.5_停用更新資訊提示_除錯版.apk
             Remote_ATV_5.0.5_停用更新資訊提示_除錯版-unsigned.apk
