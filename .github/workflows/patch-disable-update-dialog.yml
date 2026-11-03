@@ -1,4 +1,4 @@
-name: Patch Remote ATV 5.0.5 - hide update dialog
+name: Patch Remote ATV 5.0.5 - restore settings and hide update dialog
 
 on:
   workflow_dispatch:
@@ -100,7 +100,7 @@ jobs:
           print("Original 5.0.5 libapp.so preserved byte-for-byte: PASS")
           PY
 
-      - name: Disable automatic update check, dialog, and four settings rows
+      - name: Disable automatic update check and dialog; preserve all settings menu rows
         shell: bash
         run: |
           set -euo pipefail
@@ -109,15 +109,11 @@ jobs:
           from pathlib import Path
 
           src = Path("Remote_ATV_5.0.5_預設值修正_基礎版.apk")
-          out = Path("Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk")
+          out = Path("Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版-unsigned.apk")
           expected_lib = "a2b7d7a37020a462dab8230f99fd10c00e927257328730af1f54856358ca6875"
           patch_specs = [
               (0x7505bc, "ba020094", "e00316aa", None, "disable automatic update check call"),
               (0x7505e8, "13000094", "e00316aa", None, "suppress update dialog dispatch"),
-              (0x44cd78, "704b4091", "2e000014", 0x44ce30, "remove Share with friends row"),
-              (0x44ceb0, "704b4091", "22000014", 0x44cf38, "remove Rate and Review row"),
-              (0x44cfb8, "704b4091", "22000014", 0x44d040, "remove Feedback row"),
-              (0x44d1cc, "210d0054", "69000014", 0x44d370, "skip Activate premium row before construction"),
           ]
 
           def sha(b): return hashlib.sha256(b).hexdigest()
@@ -174,8 +170,8 @@ jobs:
                   verified.append((va, off, new, label, expected_target))
 
               changed = [i for i, (a, b) in enumerate(zip(lib, patched)) if a != b]
-              if len(changed) != 23:
-                  raise SystemExit(f"Unexpected patch footprint: {len(changed)} changed bytes, expected 23.")
+              if len(changed) != 8:
+                  raise SystemExit(f"Unexpected patch footprint: {len(changed)} changed bytes, expected 8.")
               if sha(bytes(patched)) == sha(lib):
                   raise SystemExit("Patch did not change libapp.so.")
 
@@ -214,21 +210,21 @@ jobs:
           BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           test -x "$BT/zipalign"
           test -x "$BT/apksigner"
-          "$BT/zipalign" -f -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
+          "$BT/zipalign" -f -p 4 "Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版-unsigned.apk" "Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版-aligned.apk"
           keytool -genkeypair -v -keystore test-debug.keystore -storepass android -alias remote-atv-test -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Remote ATV Test,O=Debug,C=TW"
-          "$BT/apksigner" sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk" "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-aligned.apk"
-          "$BT/apksigner" verify --verbose --print-certs "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
-          "$BT/zipalign" -c -p 4 "Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
+          "$BT/apksigner" sign --ks test-debug.keystore --ks-key-alias remote-atv-test --ks-pass pass:android --key-pass pass:android --out "Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版.apk" "Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版-aligned.apk"
+          "$BT/apksigner" verify --verbose --print-certs "Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版.apk"
+          "$BT/zipalign" -c -p 4 "Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版.apk"
 
       - name: Runtime-independent APK and patch checks
         shell: bash
         run: |
           set -euo pipefail
-          apk="Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk"
+          apk="Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版.apk"
           python3 - <<'PY'
           import hashlib, struct, zipfile
           from pathlib import Path
-          apk=Path("Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk")
+          apk=Path("Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版.apk")
           with zipfile.ZipFile(apk) as z:
               assert z.testzip() is None
               lib=z.read("lib/arm64-v8a/libapp.so")
@@ -244,10 +240,6 @@ jobs:
               expected={
                   0x7505bc:"e00316aa",
                   0x7505e8:"e00316aa",
-                  0x44cd78:"2e000014",
-                  0x44ceb0:"22000014",
-                  0x44cfb8:"22000014",
-                  0x44d1cc:"69000014",
               }
               for va,hexbytes in expected.items():
                   off=off_for(va)
@@ -273,9 +265,9 @@ jobs:
       - name: Upload patched debug APK and report
         uses: actions/upload-artifact@v4
         with:
-          name: Remote-ATV-5.0.5-defaults-no-update-debug
+          name: Remote-ATV-5.0.5-settings-restored-no-update-debug
           path: |
-            Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版.apk
-            Remote_ATV_5.0.5_預設值修正_停用更新提示_除錯版-unsigned.apk
+            Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版.apk
+            Remote_ATV_5.0.5_修復設定頁_停用更新提示_除錯版-unsigned.apk
           if-no-files-found: error
           retention-days: 14
