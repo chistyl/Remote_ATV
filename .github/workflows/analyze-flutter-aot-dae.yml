@@ -40,6 +40,23 @@ jobs:
           file work/analysis/libapp.so | tee work/diagnostics/elf.txt
           sha256sum work/analysis/libapp.so | tee work/diagnostics/libapp.sha256
 
+      - name: Scan raw Flutter AOT strings for update logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="work/analysis/libapp.so"
+          mkdir -p work/diagnostics
+          strings -a -n 4 "$BIN" > work/diagnostics/libapp-strings-utf8.txt
+          strings -a -el -n 4 "$BIN" > work/diagnostics/libapp-strings-utf16le.txt
+          {
+            echo "=== UTF-8 matches ==="
+            grep -Ein -C 2 'update|upgrade|version|force|later|tv_app_version|upgrader|更新|版本|稍後|立即' work/diagnostics/libapp-strings-utf8.txt || true
+            echo
+            echo "=== UTF-16LE matches ==="
+            grep -Ein -C 2 'update|upgrade|version|force|later|tv_app_version|upgrader|更新|版本|稍後|立即' work/diagnostics/libapp-strings-utf16le.txt || true
+          } > work/diagnostics/update-string-scan.txt
+          wc -l work/diagnostics/libapp-strings-utf8.txt work/diagnostics/libapp-strings-utf16le.txt | tee work/diagnostics/string-counts.txt
+
       - name: Analyze with DAE automatic SDK detection
         id: analyze
         shell: bash
