@@ -6,6 +6,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 // Keep this display label aligned with pubspec.yaml; tools/version_consistency.py verifies it.
 const String appVersionLabel = '5.0.0 (Build 50)';
+const String defaultRemoteLayout = 'dpad';
+const String defaultQuickAccess = 'none';
 
 // Android TV Remote v2 reports IME selection offsets as Unicode code points.
 // Flutter TextSelection uses UTF-16 code-unit offsets. Convert explicitly so
@@ -78,8 +80,8 @@ class _RemoteHomeState extends State<RemoteHome> {
   int tvVolumeMax = 0;
   bool hapticFeedback = true;
   bool naturalHold = true;
-  String remoteLayout = 'dpad';
-  String quickAccess = 'none';
+  String remoteLayout = defaultRemoteLayout;
+  String quickAccess = defaultQuickAccess;
   String? selectedHost;
   String? _pairedServiceName;
   String? _pairedServiceType;
@@ -302,7 +304,7 @@ class _RemoteHomeState extends State<RemoteHome> {
         naturalHold = value['naturalHold'] != false;
         // Legacy 'tap' maps to the D-pad layout.
         remoteLayout = value['remoteLayout'] == 'swipe' ? 'swipe' : 'dpad';
-        quickAccess = 'none';
+        quickAccess = defaultQuickAccess;
       });
     } catch (_) { }
   }
