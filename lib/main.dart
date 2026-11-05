@@ -5,7 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // Keep this display label aligned with pubspec.yaml; tools/version_consistency.py verifies it.
-const String appVersionLabel = '5.0.1 (Build 51)';
+const String appVersionLabel = '5.0.6 (Build 52)';
 const String defaultRemoteLayout = 'dpad';
 const String defaultQuickAccess = 'none';
 
