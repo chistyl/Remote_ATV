@@ -2,6 +2,8 @@
 
 ## 版本 5.0.6（Build 52）
 
+- 版本統一為 `5.0.6+52`（Android `versionCode 52`、`versionName 5.0.6`）。
+
 以 Remote ATV 5.0.5 APK 為功能與介面參考，重新建置的 Flutter + Android Kotlin Android TV 遙控器版本。
 
 ## V5.0.6（Build 52）
