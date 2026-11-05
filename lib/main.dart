@@ -5,7 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // Keep this display label aligned with pubspec.yaml; tools/version_consistency.py verifies it.
-const String appVersionLabel = '5.0.0 (Build 50)';
+const String appVersionLabel = '5.0.6 (Build 52)';
 const String defaultRemoteLayout = 'dpad';
 const String defaultQuickAccess = 'none';
 
@@ -101,9 +101,8 @@ class _RemoteHomeState extends State<RemoteHome> {
   final Set<int> _pressedKeyCodes = <int>{};
   final List<String> _diagnosticLogs = <String>[];
   Map<dynamic, dynamic> _connectionDiagnostics = <dynamic, dynamic>{};
-  double _touchTravel = 0;
-  int? _touchAxis; // 0 = horizontal, 1 = vertical
-  int _touchDirection = 0;
+  double _touchTravelX = 0;
+  double _touchTravelY = 0;
 
   void _addDiagnostic(String message) {
     final now = DateTime.now();
@@ -448,11 +447,11 @@ class _RemoteHomeState extends State<RemoteHome> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Remote ATV', style: TextStyle(fontWeight: FontWeight.w600)), actions: [IconButton(tooltip: voiceActive ? '停止語音' : '語音輸入', onPressed: !connected || !voiceSupported ? null : _toggleVoice, icon: Icon(voiceActive ? Icons.mic : Icons.mic_none, color: voiceActive ? const Color(0xFFB9F36A) : null)), IconButton(onPressed: _showDevices, icon: const Icon(Icons.cast_connected)), const SizedBox(width: 8)]),
-    body: SafeArea(child: Column(children: [_deviceBar(), Expanded(child: IndexedStack(index: tab, children: [_remotePage(), _touchPage(), _settingsPage()]))])),
+    body: SafeArea(child: Column(children: [_deviceBar(), Expanded(child: IndexedStack(index: tab, children: [_remotePage(), _settingsPage(), _touchPage()]))])),
     bottomNavigationBar: NavigationBar(backgroundColor: const Color(0xFF191A1F), selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: const [
       NavigationDestination(icon: Icon(Icons.gamepad_outlined), selectedIcon: Icon(Icons.gamepad), label: '遙控器'),
-      NavigationDestination(icon: Icon(Icons.touch_app_outlined), selectedIcon: Icon(Icons.touch_app), label: '觸控板'),
       NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: '設定'),
+      NavigationDestination(icon: Icon(Icons.touch_app_outlined), selectedIcon: Icon(Icons.touch_app), label: '觸控板'),
     ]),
   );
   Widget _deviceBar() => Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 12), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: _showDevices, child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF202126), borderRadius: BorderRadius.circular(16)), child: Row(children: [const Icon(Icons.tv, color: Color(0xFFB9F36A)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(deviceName, style: const TextStyle(fontWeight: FontWeight.w600)), const Text('點選以搜尋或連接電視', style: TextStyle(color: Colors.white60, fontSize: 12))])), const Icon(Icons.chevron_right)]))));
@@ -484,7 +483,7 @@ class _RemoteHomeState extends State<RemoteHome> {
   ]);
 
   Widget _remotePage() {
-    // Apply the selected layout to the main remote screen, not only its settings label.
+    // Preserve the existing preference: swipe mode can also use the touch surface on page one.
     if (remoteLayout == 'swipe') return _touchPage();
     return LayoutBuilder(builder: (context, constraints) {
     final wide = constraints.maxWidth > constraints.maxHeight && constraints.maxWidth > 600;
@@ -501,32 +500,39 @@ class _RemoteHomeState extends State<RemoteHome> {
   }
 
   void _beginTouchGesture() {
-    _touchTravel = 0;
-    _touchAxis = null;
-    _touchDirection = 0;
+    _touchTravelX = 0;
+    _touchTravelY = 0;
   }
 
   void _handleTouchGesture(DragUpdateDetails details) {
-    final dx = details.delta.dx;
-    final dy = details.delta.dy;
-    if (_touchAxis == null) {
-      if (dx.abs() < 3 && dy.abs() < 3) return;
-      _touchAxis = dx.abs() >= dy.abs() ? 0 : 1;
-      _touchDirection = _touchAxis == 0 ? (dx >= 0 ? 1 : -1) : (dy >= 0 ? 1 : -1);
-    }
-    final delta = _touchAxis == 0 ? dx : dy;
-    // Lock the direction for this gesture; ignore small opposite-direction jitter.
-    if (delta * _touchDirection <= 0) return;
-    _touchTravel += delta.abs();
-    const stepDistance = 48.0;
+    // Remote v2 exposes navigation-key events, not absolute mouse coordinates.
+    // Map both axes independently so diagonal swipes remain responsive.
+    _touchTravelX += details.delta.dx;
+    _touchTravelY += details.delta.dy;
+    const stepDistance = 42.0;
     var sent = 0;
-    while (_touchTravel >= stepDistance && sent < 4) {
-      _touchTravel -= stepDistance;
-      final keyCode = _touchAxis == 0
-          ? (_touchDirection > 0 ? 22 : 21)
-          : (_touchDirection > 0 ? 20 : 19);
+    while (_touchTravelX >= stepDistance && sent < 6) {
+      _touchTravelX -= stepDistance;
       if (hapticFeedback) HapticFeedback.selectionClick();
-      _sendKey(keyCode);
+      _sendKey(22);
+      sent++;
+    }
+    while (_touchTravelX <= -stepDistance && sent < 6) {
+      _touchTravelX += stepDistance;
+      if (hapticFeedback) HapticFeedback.selectionClick();
+      _sendKey(21);
+      sent++;
+    }
+    while (_touchTravelY >= stepDistance && sent < 6) {
+      _touchTravelY -= stepDistance;
+      if (hapticFeedback) HapticFeedback.selectionClick();
+      _sendKey(20);
+      sent++;
+    }
+    while (_touchTravelY <= -stepDistance && sent < 6) {
+      _touchTravelY += stepDistance;
+      if (hapticFeedback) HapticFeedback.selectionClick();
+      _sendKey(19);
       sent++;
     }
   }
@@ -555,11 +561,73 @@ class _RemoteHomeState extends State<RemoteHome> {
     ]);
   }
 
-  Widget _touchPage() => LayoutBuilder(builder: (context, constraints) { final landscape = constraints.maxWidth > constraints.maxHeight; return Padding(padding: EdgeInsets.all(landscape ? 10 : 20), child: Column(children: [if (!landscape) ...[const SizedBox(height: 8), const Text('觸控板', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)), const SizedBox(height: 16)], Expanded(child: GestureDetector(
-      onTap: () => _sendKey(23),
-      onPanStart: (_) => _beginTouchGesture(),
-      onPanUpdate: _handleTouchGesture,
-      child: Container(width: double.infinity, decoration: BoxDecoration(color: const Color(0xFF202126), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white12)), child: const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.swipe, size: 54, color: Color(0xFFB9F36A)), SizedBox(height: 12), Text('滑動移動・點擊確認・長按連續操作'), Text('需先完成電視配對及連線', style: TextStyle(color: Colors.white54, fontSize: 12))]))))), const SizedBox(height: 8), Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [IconButton(onPressed: () => _sendKey(4), icon: const Icon(Icons.arrow_back)), IconButton(onPressed: () => _sendKey(3), icon: const Icon(Icons.home)), IconButton(onPressed: () => _sendKey(82), icon: const Icon(Icons.menu))])])); });
+  Widget _touchPage() => LayoutBuilder(builder: (context, constraints) {
+    final landscape = constraints.maxWidth > constraints.maxHeight;
+    return Padding(
+      padding: EdgeInsets.all(landscape ? 10 : 16),
+      child: Column(children: [
+        if (!landscape) ...[
+          const Text('觸控板', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+        ],
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () { if (hapticFeedback) HapticFeedback.lightImpact(); _sendKey(23); },
+            onLongPressStart: (_) {
+              if (hapticFeedback) HapticFeedback.mediumImpact();
+              _sendKey(23, direction: 1);
+            },
+            onLongPressEnd: (_) => _sendKey(23, direction: 2),
+            onPanStart: (_) => _beginTouchGesture(),
+            onPanUpdate: _handleTouchGesture,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF202126),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.swipe, size: 52, color: Color(0xFFB9F36A)),
+                SizedBox(height: 12),
+                Text('滑動移動焦點', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                SizedBox(height: 6),
+                Text('點一下確認・長按連續確認', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                SizedBox(height: 4),
+                Text('支援上下左右及斜向滑動', style: TextStyle(color: Colors.white38, fontSize: 11)),
+              ])),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          _touchActionButton(Icons.arrow_back, '返回', 4),
+          _touchActionButton(Icons.home_outlined, '首頁', 3),
+          _touchActionButton(Icons.menu, '選單', 82),
+        ]),
+      ]),
+    );
+  });
+
+  Widget _touchActionButton(IconData icon, String label, int keyCode) => Expanded(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: Material(
+        color: const Color(0xFF202126),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () { if (hapticFeedback) HapticFeedback.lightImpact(); _sendKey(keyCode); },
+          child: Padding(padding: const EdgeInsets.symmetric(vertical: 11), child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 21, color: const Color(0xFFB9F36A)),
+            const SizedBox(height: 3),
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+          ])),
+        ),
+      ),
+    ),
+  );
   Widget _settingsPage() => ListView(padding: const EdgeInsets.all(16), children: [
     _setting(Icons.dashboard_outlined, '操作模式', remoteLayout == 'swipe' ? '觸控板操作' : '方向鍵操作', _showRemoteLayout),
     _setting(Icons.tune, 'Behavior settings', 'Haptic feedback、按住操作行為', _showBehaviorSettings),

@@ -14,7 +14,9 @@ android {
             excludes += ["META-INF/versions/9/OSGI-INF/MANIFEST.MF"]
         }
     }
-    defaultConfig { applicationId "com.chistyl.remoteatv"; minSdk 23; targetSdk 35; versionCode 50; versionName "5.0.0" }
+    // Reuse the original Remote ATV 5.0.5 package identity.
+    // The new APK uses a different signing certificate, so uninstall the old app first.
+    defaultConfig { applicationId "tech.simha.androidtvremote"; minSdk 23; targetSdk 35; versionCode 52; versionName "5.0.6" }
 }
 dependencies {
     implementation "org.bouncycastle:bcprov-jdk18on:1.80"
