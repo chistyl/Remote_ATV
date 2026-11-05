@@ -1,4 +1,4 @@
-# Remote ATV V5.0
+# Remote ATV V5.0.1
 
 獨立 Flutter + Android Kotlin Android TV 遙控器專案。
 
@@ -11,7 +11,10 @@
 - 建置報告新增 Wrapper preparation outcome，失敗時可判斷流程停在 Wrapper、套件解析或 APK 編譯階段。
 - 保留原有 Debug APK 與診斷 Artifact；只有 APK 建置及驗證成功才上傳 APK Artifact。
 - 不更動 Android TV Remote v2 配對、TLS、按鍵、IME、語音及重連協定。
-- 版本統一為 `5.0.0+50`（Android `versionCode 50`、`versionName 5.0.0`）。
+- 版本統一為 `5.0.1+51`（Android `versionCode 51`、`versionName 5.0.1`）。
+- 新增第三頁觸控板；第二頁保留設定頁。
+- 觸控板支援雙軸方向滑動、點擊確認、長按確認及返回／首頁／選單快捷操作。
+- Android TV Remote v2 傳輸層仍以 KEY 事件控制焦點，不提供絕對座標滑鼠游標。
 - 預設導航為 D-pad 方向鍵，保留觸控板模式。
 - 舊版 `tap` 設定相容轉換為 D-pad，既有 `swipe` 設定予以保留。
 - 快速存取預設為 None。
