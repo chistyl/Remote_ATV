@@ -2,7 +2,7 @@ name: Android APK Build
 
 on:
   push:
-    branches: [ main, master, rebuild/remote-atv-5 ]
+    branches: [ main, master, rebuild/remote-atv-5, feature/third-page-touchpad-5.0.1 ]
   pull_request:
   workflow_dispatch:
 
