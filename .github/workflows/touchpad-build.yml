@@ -38,7 +38,7 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build debug APK
-        run: flutter build apk --debug
+        run: bash tools/build_debug.sh
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
