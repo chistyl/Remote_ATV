@@ -483,7 +483,8 @@ class _RemoteHomeState extends State<RemoteHome> {
   ]);
 
   Widget _remotePage() {
-    // Apply the selected layout to the main remote screen, not only its settings label.
+    // Preserve the existing preference: swipe mode can also use the touch surface on page one.
+    if (remoteLayout == 'swipe') return _touchPage();
     return LayoutBuilder(builder: (context, constraints) {
     final wide = constraints.maxWidth > constraints.maxHeight && constraints.maxWidth > 600;
     final padSize = (wide ? constraints.maxHeight - 95 : constraints.maxWidth - 44).clamp(160.0, 286.0);
