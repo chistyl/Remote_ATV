@@ -6,7 +6,7 @@ on:
       - feature/third-page-touchpad-5.0.1
   pull_request:
     branches:
-      - feature/third-page-touchpad-5.0.1
+      - rebuild/remote-atv-5
   workflow_dispatch:
 
 permissions:
