@@ -1,4 +1,6 @@
-# Remote ATV V5.0.6
+# Remote ATV V5.0
+
+## 版本 5.0.6（Build 52）
 
 以 Remote ATV 5.0.5 APK 為功能與介面參考，重新建置的 Flutter + Android Kotlin Android TV 遙控器版本。
 
