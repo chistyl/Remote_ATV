@@ -39,7 +39,7 @@ jobs:
           git clone --depth 1 https://github.com/worawit/blutter.git work/blutter
           python3 work/blutter/blutter.py work/lib work/out > work/blutter.log 2>&1
           echo "Blutter exit=$?" >> work/blutter.log
-          find work/out -maxdepth 5 -type f -printf '%p %s bytes\\n' 2>/dev/null | sort > work/out-files.txt
+          find work/out -maxdepth 5 -type f -printf '%p %s bytes\n' 2>/dev/null | sort > work/out-files.txt
           grep -RniE 'Quick access|Remote layout|Share with friends|Rate and Review|Feedback|Activate premium|upgrader.dialog.title|tv_app_version|later_update_button_press|_updateUserSettingsData' work/out > work/ui-matches.txt 2>/dev/null || true
 
       - name: Disassemble update and settings candidate code regions
@@ -70,7 +70,7 @@ jobs:
                   for ins in md.disasm(data,start):
                       mark=" >>>" if ins.address==center else "    "
                       out.append(f"{mark} 0x{ins.address:08x}: {ins.mnemonic:8s} {ins.op_str}")
-              Path("work/diag/target-disassembly.txt").write_text("\\n".join(out),encoding="utf-8")
+              Path("work/diag/target-disassembly.txt").write_text("\n".join(out),encoding="utf-8")
           PY
           python3 work/diag/disassemble.py
           cat work/diag/target-disassembly.txt
@@ -89,3 +89,5 @@ jobs:
             work/diag/
           if-no-files-found: warn
           retention-days: 14
+
+# Analysis rerun marker: original 5.0.5 APK AOT reverse-engineering.
