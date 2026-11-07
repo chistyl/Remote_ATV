@@ -52,7 +52,7 @@ jobs:
           from pathlib import Path
           path=Path("work/lib/libapp.so")
           md=Cs(CS_ARCH_ARM64, CS_MODE_ARM)
-          centers=[0x7505e8,0x750634,0x750228,0x752874,0x4ab5ac,0x4ab8d0,0x4ab96c,0x4aba08,0x23676c]
+          centers=[0x4aeec0,0x44c070,0x44c00c,0x44bfa8,0x44bd30,0x44c4f0,0x44c48c,0x2267d4,0x334d70,0x7505e8,0x750634,0x23676c]
           with path.open("rb") as f:
               elf=ELFFile(f)
               segs=[s for s in elf.iter_segments() if s['p_type']=='PT_LOAD' and (int(s['p_flags'])&1)]
@@ -90,4 +90,4 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-# Analysis rerun marker: original 5.0.5 APK AOT reverse-engineering.
+# Analysis rerun marker: trace original touchpad layout widget, Remote Config gate, and gesture callbacks.
